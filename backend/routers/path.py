@@ -5,8 +5,57 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from database import get_db
 import models
+from auth import get_current_user_optional
 
 router = APIRouter(prefix="/api/path", tags=["Learning Path"])
+
+import json
+from services.skill_mapping.semantic_matcher import SemanticMatcher
+from services.skill_mapping.embedding_store import SkillEmbeddingStore
+from agents.coach import llm
+
+def resolve_target_skill(db: Session, target_name: str) -> Optional[models.Skill]:
+    # 1. Exact Match
+    skill = db.query(models.Skill).filter(models.Skill.name.ilike(target_name)).first()
+    if skill: return skill
+    
+    # 2. Alias Match
+    skills = db.query(models.Skill).all()
+    for s in skills:
+        if s.aliases:
+            try:
+                aliases = json.loads(s.aliases)
+                if any(target_name.lower() in a.lower() for a in aliases):
+                    return s
+            except:
+                pass
+
+    # 3. Semantic Match
+    try:
+        store = SkillEmbeddingStore(db)
+        matcher = SemanticMatcher(store)
+        emb = matcher.embed_texts([target_name])
+        candidates = matcher.match_batch(emb)[0]
+        if candidates and candidates[0]["score"] >= 0.5:
+            return candidates[0]["skill"]
+    except Exception as e:
+        pass
+        
+    # 4. Groq Goal Decomposition (Fallback)
+    if llm:
+        from langchain_core.prompts import ChatPromptTemplate
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are an AI curriculum designer. The user wants to learn '{goal}'. Map this goal to the most relevant foundational concept from this list of known skills: {skills}. Return ONLY the exact name of the closest skill from the list, nothing else. If nothing matches, return 'Generative AI'."),
+            ("user", "{goal}")
+        ])
+        skill_names = [s.name for s in skills]
+        chain = prompt | llm
+        res = chain.invoke({"goal": target_name, "skills": ", ".join(skill_names)})
+        mapped_name = res.content.strip()
+        skill = db.query(models.Skill).filter(models.Skill.name.ilike(mapped_name)).first()
+        if skill: return skill
+
+    return None
 
 class PathGenerationRequest(BaseModel):
     user_id: Optional[int] = None
@@ -15,6 +64,7 @@ class PathGenerationRequest(BaseModel):
     max_duration_hours: Optional[float] = None
     # Support temporary chat context profile if no user_id
     current_skills: Optional[List[str]] = []
+    completed_skill_ids: Optional[List[int]] = []
     learner_level: Optional[str] = "BEGINNER"
 
 class PathResponse(BaseModel):
@@ -25,21 +75,29 @@ class PathResponse(BaseModel):
     edges: List[Dict[str, Any]]
 
 @router.post("/generate", response_model=PathResponse)
-def generate_path(request: PathGenerationRequest, db: Session = Depends(get_db)):
-    # 1. Target Skill
-    target_skill = db.query(models.Skill).filter(models.Skill.name.ilike(request.target_skill_name)).first()
+def generate_path(request: PathGenerationRequest, db: Session = Depends(get_db), current_user: Optional[models.User] = Depends(get_current_user_optional)):
+    # 1. Target Skill (Dynamic Fallback)
+    target_skill = resolve_target_skill(db, request.target_skill_name)
     if not target_skill:
-        # Fallback to a default if not found to prevent breaking demo
+        # Final fallback to a default if completely unresolved to prevent breaking demo
         target_skill = db.query(models.Skill).filter(models.Skill.name == "Generative AI").first()
         if not target_skill:
             raise HTTPException(status_code=404, detail=f"Target skill not found.")
 
     # 2. Get User Profile or Context
     user_skills_dict = {}
-    if request.user_id:
-        profile = db.query(models.Profile).filter(models.Profile.user_id == request.user_id).first()
+    if current_user:
+        profile = db.query(models.Profile).filter(models.Profile.user_id == current_user.id).first()
         if profile:
             user_skills_dict = {ls.skill_id: ls.confidence_score for ls in profile.passports if ls.confidence_score > 70}
+        
+        # Override with any DB progress
+        progress_rows = db.query(models.UserSkillProgress).filter(
+            models.UserSkillProgress.user_id == current_user.id,
+            models.UserSkillProgress.status == "COMPLETED"
+        ).all()
+        for p in progress_rows:
+            user_skills_dict[p.skill_id] = 100.0
     else:
         # Use temporary context
         if request.current_skills:
@@ -47,6 +105,11 @@ def generate_path(request: PathGenerationRequest, db: Session = Depends(get_db))
                 s = db.query(models.Skill).filter(models.Skill.name.ilike(s_name)).first()
                 if s:
                     user_skills_dict[s.id] = 100.0
+
+    # Add explicitly completed skills from frontend
+    if request.completed_skill_ids:
+        for sid in request.completed_skill_ids:
+            user_skills_dict[sid] = 100.0
 
     # 3. Build the DAG (Recursive Prerequisite Tree)
     # Using a recursive CTE to get all prerequisites and relationships
@@ -112,7 +175,8 @@ def generate_path(request: PathGenerationRequest, db: Session = Depends(get_db))
     skills_list = []
     nodes = []
     
-    current_assigned = False
+    # Track node statuses
+    node_states = {}
     
     sorted_skills = sorted(skills_map.values(), key=lambda x: x["depth"], reverse=True)
     
@@ -143,11 +207,7 @@ def generate_path(request: PathGenerationRequest, db: Session = Depends(get_db))
                     break
                     
             if all_prereqs_completed:
-                if not current_assigned:
-                    state = "current"
-                    current_assigned = True
-                else:
-                    state = "next"
+                state = "next"
             else:
                 state = "locked"
                 
@@ -181,17 +241,22 @@ def generate_path(request: PathGenerationRequest, db: Session = Depends(get_db))
 
     # Format edges for React Flow
     rf_edges = []
+    seen_edges = set()
     for e in edges:
         source_id = e["source"]
         target_id = e["target"]
-        rf_edges.append({
-            "id": f"e-{source_id}-{target_id}",
-            "source": source_id,
-            "target": target_id,
-            "label": "Prerequisite",
-            "animated": True, # You can make this conditional based on state
-            "style": {"stroke": "#0284c7", "strokeWidth": 2}
-        })
+        edge_key = f"{source_id}-{target_id}"
+        
+        if edge_key not in seen_edges:
+            seen_edges.add(edge_key)
+            rf_edges.append({
+                "id": f"e-{edge_key}",
+                "source": source_id,
+                "target": target_id,
+                "label": "Prerequisite",
+                "animated": True, # You can make this conditional based on state
+                "style": {"stroke": "#0284c7", "strokeWidth": 2}
+            })
         
     # Temporary Routes (Mocked for now since discovery is lazy)
     routes = {

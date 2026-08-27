@@ -7,7 +7,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   
   const [chats, setChats] = useState<any[]>(() => {
     const saved = localStorage.getItem('skillroute_chats');
-    return saved ? JSON.parse(saved) : [{ id: 1, title: 'New Goal Discovery', messages: [defaultMessage], profile: null, isComplete: false }];
+    return saved ? JSON.parse(saved) : [{ id: 1, title: 'New Goal Discovery', messages: [defaultMessage], profile: null, isComplete: false, completedSkills: [] }];
   });
   
   const [currentChatId, setCurrentChatId] = useState<number>(() => {
@@ -47,8 +47,30 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
   const createNewChat = () => {
     const newId = Date.now();
-    setChats(prev => [...prev, { id: newId, title: 'New Goal Discovery', messages: [defaultMessage], profile: null, isComplete: false }]);
+    setChats(prev => [...prev, { id: newId, title: 'New Goal Discovery', messages: [defaultMessage], profile: null, isComplete: false, completedSkills: [] }]);
     setCurrentChatId(newId);
+  };
+
+  const markComplete = (skillId: number) => {
+    setChats(prevChats => prevChats.map(c => {
+      if (c.id === currentChatId) {
+        const skills = c.completedSkills || [];
+        if (!skills.includes(skillId)) {
+          return { ...c, completedSkills: [...skills, skillId] };
+        }
+      }
+      return c;
+    }));
+  };
+
+  const markIncomplete = (skillId: number) => {
+    setChats(prevChats => prevChats.map(c => {
+      if (c.id === currentChatId) {
+        const skills = c.completedSkills || [];
+        return { ...c, completedSkills: skills.filter((id: number) => id !== skillId) };
+      }
+      return c;
+    }));
   };
 
   return (
@@ -56,7 +78,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       messages: currentChat.messages, setMessages,
       profile: currentChat.profile, setProfile,
       isComplete: currentChat.isComplete, setIsComplete,
-      chats, currentChatId, setCurrentChatId, createNewChat
+      chats, currentChatId, setCurrentChatId, createNewChat,
+      completedSkills: currentChat.completedSkills || [], markComplete, markIncomplete
     }}>
       {children}
     </ChatContext.Provider>

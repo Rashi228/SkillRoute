@@ -165,6 +165,8 @@ export default function InteractiveMap() {
   const [activeRouteMode, setActiveRouteMode] = useState('BALANCED');
   const [loadingGraph, setLoadingGraph] = useState(true);
   const [graphData, setGraphData] = useState(null);
+  const [graphHistory, setGraphHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   
   // Dynamic metrics derived from graph
   const completedNodesCount = nodes.filter(n => n.data?.status === 'completed').length;
@@ -188,71 +190,97 @@ export default function InteractiveMap() {
   const [loadingResources, setLoadingResources] = useState(false);
   const [sidebarResources, setSidebarResources] = useState([]);
 
-  // Chat Overlay State
-  const { messages, setMessages, profile } = useChatContext();
+  // Chat Overlay and Progress State
+  const { messages, setMessages, profile, completedSkills, markComplete, markIncomplete } = useChatContext();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
 
   const nodeTypes = useMemo(() => ({ resource: ResourceNode }), []);
 
-  useEffect(() => {
-    const fetchGraph = async () => {
-      setLoadingGraph(true);
-      try {
-        // Use ChatContext profile or fallback
-        const payload = {
-          user_id: null,
-          target_skill_name: profile?.target_goal || "Production RAG Engineer",
-          current_skills: profile?.current_skills || ["Python"],
-          learner_level: "INTERMEDIATE"
-        };
-        const res = await fetch('http://127.0.0.1:8000/api/path/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-          const data = await res.json();
-          // If backend couldn't generate a rich DAG (e.g., only 1 node returned for GenAI), fallback to mock graph for presentation
-          if (!data.nodes || data.nodes.length <= 1) {
-            setNodes(initialNodes);
-            setEdges(initialEdges);
-          } else {
-            setNodes(data.nodes);
-            setEdges(data.edges);
-            setGraphData(data);
-          }
-        } else {
-          // Fallback to mock data on failure
+  const fetchGraph = useCallback(async (isHistoryNavigation = false) => {
+    setLoadingGraph(true);
+    try {
+      const token = localStorage.getItem('token') || '';
+      const payload = {
+        user_id: null,
+        target_skill_name: profile?.target_goal || "Production RAG Engineer",
+        current_skills: profile?.current_skills || ["Python"],
+        completed_skill_ids: completedSkills,
+        learner_level: "INTERMEDIATE"
+      };
+      const res = await fetch('http://127.0.0.1:8000/api/path/generate', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (!data.nodes || data.nodes.length <= 1) {
           setNodes(initialNodes);
           setEdges(initialEdges);
+        } else {
+          setNodes(data.nodes);
+          setEdges(data.edges);
+          setGraphData(data);
+          
+          if (!isHistoryNavigation) {
+             setGraphHistory(prev => {
+                 const newHistory = [...prev.slice(0, historyIndex + 1), { nodes: data.nodes, edges: data.edges, data }];
+                 if (newHistory.length > 20) newHistory.shift();
+                 return newHistory;
+             });
+             setHistoryIndex(prev => prev >= 19 ? 19 : prev + 1);
+          }
         }
-      } catch (err) {
+      } else {
         setNodes(initialNodes);
         setEdges(initialEdges);
-      } finally {
-        setLoadingGraph(false);
       }
-    };
+    } catch (err) {
+      setNodes(initialNodes);
+      setEdges(initialEdges);
+    } finally {
+      setLoadingGraph(false);
+    }
+  }, [profile, completedSkills, historyIndex]);
+
+  useEffect(() => {
     fetchGraph();
-  }, [profile]);
+  }, [fetchGraph]);
+
+  const navigateHistory = (direction) => {
+    const newIndex = historyIndex + direction;
+    if (newIndex >= 0 && newIndex < graphHistory.length) {
+        setHistoryIndex(newIndex);
+        const state = graphHistory[newIndex];
+        setNodes(state.nodes);
+        setEdges(state.edges);
+        setGraphData(state.data);
+    }
+  };
 
   const onNodesChange = useCallback((changes) => setNodes((nds) => applyNodeChanges(changes, nds)), []);
   const onEdgesChange = useCallback((changes) => setEdges((eds) => applyEdgeChanges(changes, eds)), []);
   
+  const [recommendations, setRecommendations] = useState(null);
+
   const onNodeClick = useCallback(async (event, node) => {
-    if (node.data.status === 'current') return;
+    if (node.data.status === 'locked') return; // Do not open panel for locked nodes
     setSelectedNode(node);
     
     // Check if we need to fetch resources
     if (!node.data.skill_id) {
-        // Fallback mock logic
         setSidebarResources([]);
+        setRecommendations(null);
         return;
     }
     
     setLoadingResources(true);
     setSidebarResources([]);
+    setRecommendations(null);
     
     try {
         const payload = {
@@ -261,16 +289,59 @@ export default function InteractiveMap() {
             goal: profile?.target_goal || "Production RAG Engineer",
             constraints: { budget: profile?.budget || "FREE" }
         };
-        const res = await fetch('http://127.0.0.1:8000/api/resources/youtube/discover', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+
+        const recPayload = {
+            skill_id: node.data.skill_id,
+            learner_level: "INTERMEDIATE",
+            goal: profile?.target_goal || "Production RAG Engineer",
+            budget: profile?.budget || "FREE"
+        };
+
+        // Fire both requests concurrently
+        const [ytRes, recRes] = await Promise.all([
+          fetch('http://127.0.0.1:8000/api/resources/youtube/discover', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+          }),
+          fetch('http://127.0.0.1:8000/api/resources/recommendations', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(recPayload)
+          })
+        ]);
         
-        if (res.ok) {
-            const data = await res.json();
-            setSidebarResources(data.resources || []);
+        let fetchedYt = [];
+        let fetchedRecs = null;
+
+        if (ytRes.ok) {
+            const data = await ytRes.json();
+            fetchedYt = data.resources || [];
         }
+        
+        if (recRes.ok) {
+            fetchedRecs = await recRes.json();
+            setRecommendations(fetchedRecs);
+            
+            // If project recommends a tutorial, fetch it concurrently as well, but wait for it
+            if (fetchedRecs?.project?.tutorial_search_intent) {
+               const projectPayload = {
+                  ...payload,
+                  constraints: { ...payload.constraints, search_intent: fetchedRecs.project.tutorial_search_intent }
+               };
+               fetch('http://127.0.0.1:8000/api/resources/youtube/discover', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(projectPayload)
+               }).then(res => res.json()).then(data => {
+                  if(data.resources) {
+                     setSidebarResources(prev => [...prev, ...data.resources.map(r => ({...r, _is_project_tutorial: true}))]);
+                  }
+               }).catch(e => console.error("Project tutorial fetch failed", e));
+            }
+        }
+        setSidebarResources(fetchedYt);
+
     } catch (err) {
         console.error("Discovery failed", err);
     } finally {
@@ -278,14 +349,45 @@ export default function InteractiveMap() {
     }
   }, [profile]);
 
-  const handleChatSubmit = (e) => {
+  const handleChatSubmit = async (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
-    setMessages(prev => [...prev, { role: 'user', content: chatInput }]);
+    const userMsg = chatInput;
+    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setChatInput('');
-    setTimeout(() => {
-      setMessages(prev => [...prev, { role: 'ai', content: "I've noted that! I can adjust the graph based on your new preferences." }]);
-    }, 1000);
+    
+    try {
+      const token = localStorage.getItem("token") || "";
+      const payload = {
+        message: userMsg,
+        target_goal: profile?.target_goal || "Production RAG Engineer",
+        budget: profile?.budget || "FREE",
+        time_commitment: profile?.time_commitment || "10 hours per week"
+      };
+      
+      const res = await fetch('http://127.0.0.1:8000/api/chat/coach', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(prev => [...prev, { role: 'ai', content: data.reply }]);
+        
+        // Handle Map regeneration locally or trigger backend re-fetch
+        if (data.requires_regeneration) {
+            fetchGraph();
+        }
+      } else {
+        setMessages(prev => [...prev, { role: 'ai', content: "Sorry, I encountered an error communicating with the server." }]);
+      }
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'ai', content: "Network error." }]);
+    }
   };
 
   const handleRouteSelect = (mode) => {
@@ -345,6 +447,9 @@ export default function InteractiveMap() {
             <p className="text-sm text-slate-600 font-medium">Your personalized route to {profile?.target_goal || "Production RAG Engineer"}</p>
           </div>
           <div className="pointer-events-auto bg-white border border-slate-200 rounded-lg p-1.5 flex gap-1 shadow-sm">
+            <button disabled={historyIndex <= 0} onClick={() => navigateHistory(-1)} className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${historyIndex <= 0 ? 'text-slate-300' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>←</button>
+            <button disabled={historyIndex >= graphHistory.length - 1} onClick={() => navigateHistory(1)} className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${historyIndex >= graphHistory.length - 1 ? 'text-slate-300' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>→</button>
+            <div className="w-px bg-slate-200 my-1 mx-1" />
             <button className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded transition-colors">Fit Map</button>
             <div className="w-px bg-slate-200 my-1 mx-1" />
             <button className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded transition-colors">Reset</button>
@@ -474,19 +579,19 @@ export default function InteractiveMap() {
                   </div>
                 </div>
 
-                <h3 className="text-sm font-bold text-slate-900 mb-3">Recommended Resources</h3>
+                <h3 className="text-sm font-bold text-slate-900 mb-2 border-b pb-1">🎥 Learn</h3>
                 
                 {loadingResources ? (
-                  <div className="flex flex-col items-center justify-center p-6 space-y-3">
+                  <div className="flex flex-col items-center justify-center p-4 space-y-3">
                     <Loader2 className="w-6 h-6 text-teal-500 animate-spin" />
                     <div className="text-xs text-slate-500 font-medium animate-pulse">Loading verified recommendations...</div>
                   </div>
-                ) : sidebarResources.length > 0 ? (
-                  <div className="space-y-4">
-                    {sidebarResources.map((res, i) => (
-                      <div key={i} className="p-3 bg-white border border-slate-200 shadow-sm rounded-xl hover:border-blue-300 transition-colors group">
+                ) : sidebarResources.filter(r => !r._is_project_tutorial).length > 0 ? (
+                  <div className="space-y-3 mb-6">
+                    {sidebarResources.filter(r => !r._is_project_tutorial).map((res, i) => (
+                      <div key={i} className="p-3 bg-white border border-slate-200 shadow-sm rounded-xl hover:border-red-300 transition-colors group">
                         <div className="flex gap-3 mb-2">
-                          <div className="w-24 h-16 rounded overflow-hidden flex-shrink-0 bg-slate-100">
+                          <div className="w-20 h-14 rounded overflow-hidden flex-shrink-0 bg-slate-100">
                             {res.thumbnail ? (
                               <img src={res.thumbnail} alt={res.title} className="w-full h-full object-cover" />
                             ) : (
@@ -497,44 +602,150 @@ export default function InteractiveMap() {
                             <div className="text-xs font-bold text-slate-900 leading-tight mb-1 line-clamp-2" title={res.title}>{res.title}</div>
                             <div className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap">
                               <span className="font-semibold text-slate-700">{res.channel || 'YouTube'}</span>
-                              <span>•</span>
-                              <span>{Math.round(res.duration / 60)} min</span>
-                              <span>•</span>
-                              <span className="text-emerald-600 font-bold">{res.cost_type}</span>
+                              {res.language && <span className="bg-slate-100 px-1 rounded">{res.language.toUpperCase()}</span>}
                             </div>
                           </div>
                         </div>
-                        
-                        {res.why_recommended && (
-                          <div className="mt-3 p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Why Recommended</div>
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
-                                <CheckCircle className="w-3 h-3 text-emerald-500" /> Matches: {res.why_recommended.skill_match}
-                              </div>
-                              <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
-                                <CheckCircle className="w-3 h-3 text-emerald-500" /> Relevance: {res.why_recommended.semantic_score}
-                              </div>
-                              {res.verified && (
-                                <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
-                                  <CheckCircle className="w-3 h-3 text-emerald-500" /> Verified URL
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        
-                        <a href={res.url} target="_blank" rel="noreferrer" className="mt-3 w-full py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors">
-                          <PlaySquare className="w-3.5 h-3.5" /> Watch Now
+                        <a href={res.url} target="_blank" rel="noreferrer" className="mt-2 w-full py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors">
+                          <PlaySquare className="w-3.5 h-3.5" /> Watch Tutorial
                         </a>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="p-4 bg-slate-50 border border-slate-200 border-dashed rounded-xl text-center">
-                    <div className="text-xs text-slate-500">No verified resources available right now.</div>
+                  <div className="p-4 bg-slate-50 border border-slate-200 border-dashed rounded-xl text-center mb-6">
+                    <div className="text-xs text-slate-500">No verified tutorials available right now.</div>
                   </div>
                 )}
+                {/* COURSES SECTION */}
+                {recommendations?.courses?.length > 0 && (
+                   <div className="mb-6">
+                      <h3 className="text-sm font-bold text-slate-900 mb-2 border-b pb-1">🎓 Courses</h3>
+                      <div className="space-y-2">
+                         {recommendations.courses.map((c, i) => (
+                            <div key={i} className="p-3 border border-slate-200 rounded-lg bg-slate-50 flex flex-col gap-2 shadow-sm hover:border-indigo-200 transition-colors">
+                               <div className="flex justify-between items-start">
+                                  <div className="font-bold text-xs text-slate-800 leading-tight pr-2">{c.title}</div>
+                                  <div className="text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold whitespace-nowrap tracking-wide">{c.provider}</div>
+                               </div>
+                               <div className="flex justify-between items-center text-[10px]">
+                                  <div className="text-slate-500 font-medium flex items-center gap-1">
+                                    <span className="text-amber-500 font-bold">★ {c.rating ? Number(c.rating).toFixed(1) : 'N/A'}</span>
+                                    <span>({c.review_count || 0})</span>
+                                  </div>
+                                  <div className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">{c.cost_type === 'PAID' ? `${c.currency || '$'}${c.price || '...'}` : c.cost_type}</div>
+                               </div>
+                               <a href={c.url} target="_blank" rel="noreferrer" className="w-full py-1.5 bg-[#2D6A62] hover:bg-[#21524b] text-white text-xs font-bold rounded flex items-center justify-center transition-colors mt-1 shadow-sm">
+                                  View Course
+                               </a>
+                            </div>
+                         ))}
+                      </div>
+                   </div>
+                )}
+
+                {/* PRACTICE SECTION */}
+                {recommendations?.practice?.length > 0 && (
+                   <div className="mb-6">
+                      <h3 className="text-sm font-bold text-slate-900 mb-2 border-b pb-1">💻 Practice</h3>
+                      <div className="space-y-2">
+                         {recommendations.practice.map((p, i) => (
+                            <div key={i} className="p-3 border border-slate-200 rounded-lg bg-slate-50">
+                               <div className="flex justify-between items-start mb-1">
+                                  <div className="font-bold text-sm text-slate-800">{p.platform}</div>
+                                  <div className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold">{p.cost}</div>
+                               </div>
+                               <div className="text-xs text-slate-600 mb-2">{p.why}</div>
+                               <a href={p.url} target="_blank" rel="noreferrer" className="w-full py-1.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-xs font-bold rounded-lg flex items-center justify-center gap-2">
+                                  Practice Now
+                               </a>
+                            </div>
+                         ))}
+                      </div>
+                   </div>
+                )}
+
+                {/* BUILD SECTION */}
+                {recommendations?.project && (
+                   <div className="mb-6">
+                      <h3 className="text-sm font-bold text-slate-900 mb-2 border-b pb-1">🚀 Build a Project</h3>
+                      <div className="p-3 border border-amber-200 bg-amber-50 rounded-lg mb-3">
+                         <div className="font-bold text-amber-900 text-sm mb-1">{recommendations.project.title}</div>
+                         <div className="text-xs text-amber-700 mb-2">{recommendations.project.description}</div>
+                         <div className="flex gap-2 text-[10px] font-bold text-amber-600 uppercase">
+                            <span className="bg-amber-100 px-1.5 py-0.5 rounded">{recommendations.project.difficulty}</span>
+                            <span className="bg-amber-100 px-1.5 py-0.5 rounded">~{recommendations.project.estimated_hours} hrs</span>
+                         </div>
+                      </div>
+                      
+                      {/* Project Tutorials */}
+                      {sidebarResources.filter(r => r._is_project_tutorial).map((res, i) => (
+                          <div key={i} className="flex gap-3 mb-2 p-2 border border-slate-200 rounded hover:bg-slate-50">
+                             <div className="flex-1 min-w-0">
+                                <div className="text-xs font-bold text-slate-800 truncate" title={res.title}>{res.title}</div>
+                                <div className="text-[10px] text-slate-500">{res.language?.toUpperCase() || 'EN'} Tutorial</div>
+                             </div>
+                             <a href={res.url} target="_blank" rel="noreferrer" className="px-3 py-1 bg-slate-800 text-white text-xs font-bold rounded hover:bg-slate-700 flex items-center justify-center">
+                                Watch
+                             </a>
+                          </div>
+                      ))}
+                   </div>
+                )}
+
+                {/* READ SECTION */}
+                {recommendations?.read?.length > 0 && (
+                   <div className="mb-6">
+                      <h3 className="text-sm font-bold text-slate-900 mb-2 border-b pb-1">📖 Read & Understand</h3>
+                      <div className="space-y-2">
+                         {recommendations.read.map((r, i) => (
+                            <div key={i} className="flex justify-between items-center p-2.5 border border-slate-200 rounded-lg bg-slate-50">
+                               <div>
+                                  <div className="text-xs font-bold text-slate-800">{r.title}</div>
+                                  <div className="text-[10px] text-slate-500">{r.source}</div>
+                               </div>
+                               <a href={r.url} target="_blank" rel="noreferrer" className="px-3 py-1 bg-white border border-slate-300 text-slate-700 text-xs font-bold rounded hover:bg-slate-100">
+                                  Read
+                               </a>
+                            </div>
+                         ))}
+                      </div>
+                   </div>
+                )}
+
+                {/* PROGRESS SECTION */}
+                <div className="mt-8 pt-4 border-t border-slate-200">
+                   {completedSkills.includes(selectedNode.data.skill_id) ? (
+                      <button onClick={async () => {
+                         const token = localStorage.getItem('token');
+                         if (token) {
+                             await fetch(`http://127.0.0.1:8000/api/progress/${selectedNode.data.skill_id}/incomplete`, {
+                                 method: 'POST',
+                                 headers: { 'Authorization': `Bearer ${token}` }
+                             });
+                         }
+                         markIncomplete(selectedNode.data.skill_id);
+                         setSelectedNode(null);
+                      }} className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
+                         Mark as Incomplete
+                      </button>
+                   ) : (
+                      <button onClick={async () => {
+                         const token = localStorage.getItem('token');
+                         if (token) {
+                             await fetch(`http://127.0.0.1:8000/api/progress/${selectedNode.data.skill_id}/complete`, {
+                                 method: 'POST',
+                                 headers: { 'Authorization': `Bearer ${token}` }
+                             });
+                         }
+                         markComplete(selectedNode.data.skill_id);
+                         setSelectedNode(null);
+                      }} className="w-full py-2.5 bg-[#2D6A62] hover:bg-[#21524b] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                         <CheckCircle className="w-5 h-5" /> Mark Complete
+                      </button>
+                   )}
+                </div>
+
               </div>
             </>
           )}

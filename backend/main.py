@@ -6,8 +6,8 @@ import models
 import schemas
 import auth
 from database import engine, get_db
-from routers import chat, path
-from api import youtube
+from routers import chat, path, progress
+from api import youtube, recommendations
 
 # Create DB tables
 models.Base.metadata.create_all(bind=engine)
@@ -24,9 +24,10 @@ app.add_middleware(
 
 app.include_router(chat.router)
 app.include_router(path.router)
+app.include_router(progress.router)
 app.include_router(youtube.router)
+app.include_router(recommendations.router)
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
 
 @app.get("/api/health")
 def health_check():

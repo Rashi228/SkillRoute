@@ -71,17 +71,21 @@ class YouTubeDiscoveryOrchestrator:
         discovered_urls = self.cache.get_existing_urls() # Used for deduplication
         raw_videos = []
         
-        for q in queries:
-            vids = self.client.search_videos(q)
-            self.metrics["youtube_api_calls"] += 1 # 1 for search, 1 for enrich (tracked in client, but we approximate here, client has calls_made)
+        for q_obj in queries:
+            q_str = q_obj["query"]
+            q_lang = q_obj["language"]
+            vids = self.client.search_videos(q_str)
+            self.metrics["youtube_api_calls"] += 1 
             self.metrics["videos_received"] += len(vids)
             
             for v in vids:
                 vid_id = v["id"] if isinstance(v["id"], str) else v["id"]["videoId"]
                 url = f"https://www.youtube.com/watch?v={vid_id}"
                 
-                # Check for duplicate in THIS BATCH to prevent processing the same API result twice
+                # Check for duplicate in THIS BATCH
                 if url not in [f"https://www.youtube.com/watch?v={rv['id'] if isinstance(rv['id'], str) else rv['id']['videoId']}" for rv in raw_videos]:
+                    # Attach language metadata
+                    v["_target_language"] = q_lang
                     raw_videos.append(v)
                 else:
                     self.metrics["videos_deduplicated"] += 1
@@ -106,13 +110,20 @@ class YouTubeDiscoveryOrchestrator:
         urls_to_verify = [f"https://www.youtube.com/watch?v={v['video_id']}" for v in top_ranked]
         validation_results = await self._validate_urls(urls_to_verify)
         
-        # 6. Cache into DB
+        # 6. Filter strictly to 1 English and 1 Hindi video
         final_resources = []
         processed_urls = set()
+        lang_counts = {"en": 0, "hi": 0}
+        
         for v in top_ranked:
             url = f"https://www.youtube.com/watch?v={v['video_id']}"
             if url in processed_urls:
                 continue
+                
+            lang = v.get("raw_api_data", {}).get("_target_language", "en")
+            if lang_counts.get(lang, 0) >= 1:
+                continue # We only want 1 per language
+                
             processed_urls.add(url)
             is_valid = validation_results.get(url, False)
             
@@ -121,8 +132,9 @@ class YouTubeDiscoveryOrchestrator:
                 
             self.metrics["videos_verified"] += 1
             
-            new_res = self._insert_resource(v, skill, learner_level)
+            new_res = self._insert_resource(v, skill, learner_level, lang)
             final_resources.append(new_res)
+            lang_counts[lang] = lang_counts.get(lang, 0) + 1
             
         self.db.commit()
         self.metrics["videos_cached"] = len(final_resources)
@@ -150,7 +162,7 @@ class YouTubeDiscoveryOrchestrator:
                     results[url] = False
         return results
         
-    def _insert_resource(self, ranked_vid: Dict[str, Any], skill: Skill, learner_level: str) -> Resource:
+    def _insert_resource(self, ranked_vid: Dict[str, Any], skill: Skill, learner_level: str, lang: str = "en") -> Resource:
         raw = ranked_vid["raw_api_data"]
         snippet = raw.get("snippet", {})
         stats = raw.get("statistics", {})
@@ -203,6 +215,7 @@ class YouTubeDiscoveryOrchestrator:
             channel_id=snippet.get("channelTitle"),
             published_at=dateutil.parser.isoparse(snippet.get("publishedAt")) if snippet.get("publishedAt") else None,
             duration_seconds=0,
+            language=lang,
             view_count=int(stats.get("viewCount", "0") or 0),
             cost_type="FREE",
             verification_status="VERIFIED",
@@ -233,6 +246,7 @@ class YouTubeDiscoveryOrchestrator:
             "thumbnail": r.thumbnail_url,
             "channel": r.channel_id,
             "duration": r.duration_seconds,
+            "language": r.language,
             "views": r.view_count,
             "url": r.canonical_url,
             "cost_type": r.cost_type.value if hasattr(r.cost_type, "value") else str(r.cost_type),

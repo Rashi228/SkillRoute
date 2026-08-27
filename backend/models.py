@@ -110,6 +110,19 @@ class LearnerSkill(Base):
     profile = relationship("Profile", back_populates="passports")
     skill = relationship("Skill")
 
+class UserSkillProgress(Base):
+    __tablename__ = "user_skill_progress"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    skill_id = Column(Integer, ForeignKey("skills.id"))
+    status = Column(String, default="INCOMPLETE") # COMPLETED, INCOMPLETE
+    mastery_score = Column(Float, default=0.0)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    user = relationship("User")
+    skill = relationship("Skill")
+
 class Resource(Base):
     __tablename__ = "resources"
     id = Column(Integer, primary_key=True, index=True)
