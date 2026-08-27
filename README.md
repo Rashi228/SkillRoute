@@ -35,6 +35,36 @@ A production-grade, highly scalable asynchronous data pipeline designed to inges
 - **Real-time AI Overlay:** A floating chatbot widget that persists state across the application, allowing users to tweak their map on the fly.
 - **Robust Resource Catalogue:** A verified, deduplicated backend database containing normalized cost, difficulty, and URL metadata.
 
+## Detailed Workflow
+
+Understanding how SkillRoute transforms a user's initial prompt into a highly personalized, dynamic learning map:
+
+### 1. AI Onboarding & Intent Extraction
+- **The Chat Profiler**: When a user registers, they are greeted by an AI coach (powered by Langchain and Groq). The user casually describes what they want to learn, their background, timeline, and budget constraints.
+- **Context Generation**: Instead of rigid forms, the Groq LLM parses this conversation to extract a structured JSON `Profile` containing their `target_goal`, `current_skills`, `time_commitment`, and `budget`. 
+- **State Persistence**: This multi-turn chat history and the extracted profile are saved in the frontend's `localStorage` (via React Context), ensuring the user never loses their progress if they refresh or navigate away.
+
+### 2. DAG Generation (The Learning Map)
+- **Database Search**: The extracted `target_goal` (e.g., "Generative AI") is sent to the FastAPI backend (`/api/path/generate`).
+- **Recursive Tree Building**: The PostgreSQL database utilizes a recursive Common Table Expression (CTE) query to scan the `skill_prerequisites` table. It recursively climbs the prerequisite tree from the target goal down to the foundational skills.
+- **Gap Analysis**: The backend cross-references this complete tree with the user's `current_skills`. It then assigns states to each node:
+  - `completed`: The user already knows this.
+  - `current`/`next`: The immediate next steps where all prerequisites are met.
+  - `locked`: Advanced skills blocked by unlearned prerequisites.
+  - `goal`: The final destination.
+- **Centered Tree Algorithm**: The backend calculates precise `x` and `y` coordinates for each node to ensure the ReactFlow graph renders symmetrically and beautifully on the dashboard.
+
+### 3. Dynamic Dashboard Rendering
+- **Route Planner (Left Sidebar)**: The frontend dynamically calculates the minimum number of stops required to reach the goal. It offers three personalized routes: *Fast Track*, *Balanced*, and *Deep Dive*, recalculating estimated times based on the graph's complexity.
+- **Readiness Radar (Right Sidebar)**: Rather than showing hardcoded metrics, the dashboard calculates the user's "Overall Readiness" by dividing their completed nodes by the total required nodes. It dynamically tracks milestones and estimates total hours invested.
+
+### 4. Real-time YouTube Resource Discovery
+- **Node Interaction**: When the user clicks an active node on the map, the frontend fires a request to the `/api/resources/youtube/discover` endpoint.
+- **Intent-based Search**: The backend `YouTubeDiscoveryOrchestrator` uses Groq to generate 3 highly optimized YouTube search queries tailored specifically to the user's `learner_level` and the target skill.
+- **Live Fetch & Cache**: It hits the live YouTube Data API. To ensure performance and save quotas, it aggressively deduplicates results and checks its local PostgreSQL cache before making external calls.
+- **Semantic Ranking & Verification**: The returned videos are semantically scored against the skill intent using a semantic matcher, and their URLs are asynchronously pinged to verify they aren't dead links.
+- **Delivery**: The verified, ranked videos are delivered back to the frontend, rendering as actionable "Watch Now" cards in the side panel, perfectly matched to the user's current learning node!
+
 ## Local Setup & Installation
 
 ### Prerequisites
