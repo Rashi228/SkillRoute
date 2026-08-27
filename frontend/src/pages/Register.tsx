@@ -26,7 +26,7 @@ export default function Register() {
     return null;
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const passError = validatePassword(password);
@@ -36,11 +36,34 @@ export default function Register() {
       return;
     }
 
-    setError('');
-    setSuccess('Account created successfully! Redirecting...');
-    setTimeout(() => {
-      window.location.href = '/profiler';
-    }, 1500);
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: name,
+          email: email,
+          password: password,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        setError(errorData.detail || "Registration failed. Email might already exist.");
+        setSuccess('');
+        return;
+      }
+
+      setError('');
+      setSuccess('Account created successfully! Redirecting to Login...');
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1500);
+    } catch (err) {
+      setError("An error occurred during registration. Please try again.");
+    }
   };
 
   return (
@@ -122,7 +145,7 @@ export default function Register() {
 
         <p className="mt-6 text-center text-sm text-gray-600">
           Already have an account?{' '}
-          <Link to="/login" className="text-blue-600 hover:text-blue-800 font-medium">
+          <Link to="/" className="text-blue-600 hover:text-blue-800 font-medium">
             Sign in
           </Link>
         </p>

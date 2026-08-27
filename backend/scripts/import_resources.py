@@ -35,11 +35,23 @@ def print_report(job: IngestionJob, duration: float):
     else:
         print("Verified:".ljust(30) + str(verified).rjust(15))
         print("Failed:".ljust(30) + str(job.validation_failed_rows).rjust(15))
-        print("Unknown:".ljust(30) + str(job.unknown_url_rows).rjust(15))
-    
+        print(f"Unknown:                               {job.unknown_url_rows:8d}")
     print("\nDatabase:")
-    print("Inserted:".ljust(30) + str(job.inserted_rows).rjust(15))
-    print("Updated:".ljust(30) + str(job.updated_rows).rjust(15))
+    print(f"Inserted:                              {job.inserted_rows:8d}")
+    print(f"Updated:                               {job.updated_rows:8d}")
+    
+    print("\nSkill Mapping")
+    print("-" * 48)
+    print(f"Exact matches:                         {job.exact_matches:8d}")
+    print(f"Alias matches:                         {job.alias_matches:8d}")
+    print(f"Semantic matches:                      {job.semantic_matches:8d}")
+    print(f"Groq reviewed:                         {job.groq_reviewed:8d}")
+    print(f"Unmapped:                              {job.unmapped_resources:8d}")
+    print("-" * 48)
+    print(f"Total mappings:                        {job.total_mappings:8d}")
+    
+    avg_conf = job.total_confidence_sum / job.total_mappings if job.total_mappings > 0 else 0.0
+    print(f"Average confidence:                    {avg_conf:8.2f}")
     
     print(f"\nDuration: {duration:.2f} seconds")
     print(f"Status: {job.status}")

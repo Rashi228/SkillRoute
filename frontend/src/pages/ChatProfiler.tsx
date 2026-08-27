@@ -4,11 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import { useChatContext } from '../context/ChatContext';
 
 export default function ChatProfiler() {
-  const { messages, setMessages, profile, setProfile, isComplete, setIsComplete } = useChatContext();
+  const { messages, setMessages, profile, setProfile, isComplete, setIsComplete, chats, currentChatId, setCurrentChatId, createNewChat } = useChatContext();
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
+  
+  const userEmail = localStorage.getItem('userEmail') || 'ADMIN@SKILLROUTE.COM';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -65,6 +67,10 @@ export default function ChatProfiler() {
     }
   };
 
+  const handleNewChat = () => {
+    createNewChat();
+  };
+
   return (
     <div className="h-screen bg-[#F8FAFC] flex font-sans overflow-hidden">
       
@@ -83,12 +89,18 @@ export default function ChatProfiler() {
           
           <div className="text-xs font-bold text-slate-500 mb-4 mt-2 flex justify-between items-center">
             <span>RECENT CHATS</span>
-            <span className="cursor-pointer hover:text-white">+</span>
+            <span className="cursor-pointer hover:text-white" onClick={handleNewChat} title="New Chat">+</span>
           </div>
           <div className="space-y-1">
-            <button className="w-full text-left p-2 rounded-lg bg-slate-800 text-teal-400 text-sm font-medium flex items-center gap-2">
-              <Bot className="w-4 h-4" /> New Goal Discovery
-            </button>
+            {chats.map(chat => (
+              <button 
+                key={chat.id}
+                onClick={() => setCurrentChatId(chat.id)}
+                className={`w-full text-left p-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${chat.id === currentChatId ? 'bg-slate-800 text-teal-400' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'}`}
+              >
+                <Bot className="w-4 h-4" /> {chat.title}
+              </button>
+            ))}
           </div>
         </div>
         
@@ -99,7 +111,7 @@ export default function ChatProfiler() {
           </div>
           <div>
             <div className="text-sm font-bold text-white">My Workspace</div>
-            <div className="text-[10px] text-slate-500">ADMIN@SKILLROUTE.COM</div>
+            <div className="text-[10px] text-slate-500 uppercase">{userEmail}</div>
           </div>
         </div>
       </div>

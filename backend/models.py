@@ -39,6 +39,15 @@ class IngestionJob(Base):
     error_rows = Column(Integer, default=0)
     error_message = Column(Text, nullable=True)
 
+    # Skill Mapping Metrics
+    exact_matches = Column(Integer, default=0)
+    alias_matches = Column(Integer, default=0)
+    semantic_matches = Column(Integer, default=0)
+    groq_reviewed = Column(Integer, default=0)
+    unmapped_resources = Column(Integer, default=0)
+    total_mappings = Column(Integer, default=0)
+    total_confidence_sum = Column(Float, default=0.0)
+
     started_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -71,6 +80,18 @@ class Skill(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
     description = Column(Text, nullable=True)
+    aliases = Column(Text, nullable=True) # Stored as JSON array
+    parent_skill_id = Column(Integer, ForeignKey("skills.id"), nullable=True)
+    
+    # Embeddings (JSON text for now, cleanly migratable to pgvector later)
+    embedding = Column(Text, nullable=True) 
+    embedding_model = Column(String, nullable=True)
+    embedding_version = Column(String, nullable=True)
+    embedding_content_hash = Column(String, nullable=True)
+    embedding_updated_at = Column(DateTime(timezone=True), nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 class SkillPrerequisite(Base):
     __tablename__ = "skill_prerequisites"

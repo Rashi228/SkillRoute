@@ -7,7 +7,7 @@ from config import settings
 groq_client = Groq(api_key=settings.GROQ_API_KEY) if settings.GROQ_API_KEY else None
 
 # LangChain Groq Chat Model (for LangGraph)
-def get_llm(model_name="llama3-8b-8192", temperature=0):
+def get_llm(model_name="openai/gpt-oss-20b", temperature=0):
     if not settings.GROQ_API_KEY:
         raise ValueError("GROQ_API_KEY is not set in environment variables.")
     return ChatGroq(

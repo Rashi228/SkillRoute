@@ -5,7 +5,8 @@ from typing import List
 from sqlalchemy.orm import Session
 from models import IngestionJob, Resource, ResourceSkill
 from .base import ProviderAdapter, NormalizedResource
-from .normalizer import CostClassifier, SkillMapper
+from .normalizer import CostClassifier
+from services.skill_mapping.mapper import SkillMapperOrchestrator
 from .deduplicator import Deduplicator
 from .validator import validate_resources_sync
 
@@ -21,7 +22,7 @@ class IngestionPipeline:
             raise ValueError(f"Job {job_id} not found")
             
         self.deduplicator = Deduplicator(self.db)
-        self.skill_mapper = SkillMapper(self.db)
+        self.skill_mapper = SkillMapperOrchestrator(self.db)
 
     def process_csv(self, file_path: str, adapter: ProviderAdapter, batch_size: int = 500):
         self.job.status = "RUNNING"
@@ -71,6 +72,8 @@ class IngestionPipeline:
                 print(f"Validation batch failed: {e}")
 
         # DB Upsert
+        inserted_resources = []
+        successful_norm_res = []
         for norm_res in normalized_batch:
             if not self.dry_run:
                 if norm_res.verification_status == "VERIFIED":
@@ -81,10 +84,56 @@ class IngestionPipeline:
                     self.job.unknown_url_rows += 1
 
             try:
-                self._upsert_resource(norm_res)
+                if not self.dry_run:
+                    with self.db.begin_nested():
+                        res_obj = self._upsert_resource(norm_res)
+                        if res_obj:
+                            inserted_resources.append(res_obj)
+                            successful_norm_res.append(norm_res)
+                else:
+                    self._upsert_resource(norm_res)
             except Exception as e:
                 self.job.error_rows += 1
-                self.db.rollback() # Rollback the individual error
+                print(f"Upsert failed for {norm_res.title}: {e}")
+                
+        # Map skills in batch
+        if not self.dry_run and successful_norm_res:
+            try:
+                batch_mappings = self.skill_mapper.process_batch(successful_norm_res)
+                for res_obj, mappings in zip(inserted_resources, batch_mappings):
+                    if not mappings:
+                        self.job.unmapped_resources += 1
+                    for skill_id, conf, source in mappings:
+                        self.job.total_mappings += 1
+                        self.job.total_confidence_sum += conf
+                        
+                        if source in ["EXPLICIT_PROVIDER", "EXACT_MATCH"]:
+                            self.job.exact_matches += 1
+                        elif source == "ALIAS_MATCH":
+                            self.job.alias_matches += 1
+                        elif source == "SEMANTIC":
+                            self.job.semantic_matches += 1
+                        elif source == "LLM_REVIEW":
+                            self.job.groq_reviewed += 1
+                            
+                        existing_rs = self.db.query(ResourceSkill).filter(
+                            ResourceSkill.resource_id == res_obj.id,
+                            ResourceSkill.skill_id == skill_id
+                        ).first()
+                        
+                        if existing_rs:
+                            if existing_rs.mapping_source != "EXPLICIT_PROVIDER" and source == "EXPLICIT_PROVIDER":
+                                existing_rs.mapping_source = source
+                                existing_rs.confidence = conf
+                        else:
+                            self.db.add(ResourceSkill(
+                                resource_id=res_obj.id,
+                                skill_id=skill_id,
+                                confidence=conf,
+                                mapping_source=source
+                            ))
+            except Exception as e:
+                print(f"Error mapping batch: {e}")
                 
         # Commit batch
         if not self.dry_run:
@@ -149,18 +198,4 @@ class IngestionPipeline:
             self.db.add(resource_obj)
             self.db.flush() # get ID
 
-        # Map skills
-        if not self.dry_run:
-            mapped_skills = self.skill_mapper.map_skills(norm_res)
-            for skill_id, conf in mapped_skills:
-                existing_rs = self.db.query(ResourceSkill).filter(
-                    ResourceSkill.resource_id == resource_obj.id,
-                    ResourceSkill.skill_id == skill_id
-                ).first()
-                if not existing_rs:
-                    self.db.add(ResourceSkill(
-                        resource_id=resource_obj.id,
-                        skill_id=skill_id,
-                        confidence=conf,
-                        mapping_source="Ingestion"
-                    ))
+        return resource_obj

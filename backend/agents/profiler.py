@@ -15,8 +15,10 @@ You need to identify:
 4. time_commitment: How much time can they study? (e.g. 8 hours per week)
 5. deadline: When do they want to achieve this?
 
-If essential information like 'target_goal' or 'current_skills' is missing, set is_complete to false and provide a natural, conversational 'follow_up_question' to ask the user.
-If everything seems clear enough to build a basic path, set is_complete to true.
+IMPORTANT RULES:
+- ONLY ask about MISSING data. Do NOT ask for information the user has already provided! For example, if they provided a timeline or duration, DO NOT ask about their available time.
+- If essential information like 'target_goal' or 'current_skills' is missing, set is_complete to false and provide a natural, conversational 'follow_up_question' to ask the user exclusively about what is missing.
+- If everything seems clear enough to build a basic path, set is_complete to true.
 """
 
 def extract_profile_logic(user_message: str, chat_history: list = None) -> ProfilerResponse:

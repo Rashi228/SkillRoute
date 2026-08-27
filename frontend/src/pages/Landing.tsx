@@ -13,7 +13,7 @@ export default function Landing() {
               <span className="font-extrabold text-xl tracking-tight text-slate-800">SkillRoute</span>
             </div>
             <div className="flex gap-4">
-              <Link to="/login" className="text-slate-600 hover:text-teal-600 px-4 py-2 font-bold transition-colors">Sign In</Link>
+              <a href="#login" className="text-slate-600 hover:text-teal-600 px-4 py-2 font-bold transition-colors">Sign In</a>
               <Link to="/register" className="bg-[#2D6A62] hover:bg-teal-800 text-white px-6 py-2 rounded-lg font-bold transition-all shadow-md hover:shadow-lg">Sign Up</Link>
             </div>
           </div>
@@ -262,15 +262,34 @@ function LandingLoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulated validation for demo purposes
-    if (email !== "admin@skillroute.com" || password !== "Admin123!") {
-      setError("Invalid credentials. Try admin@skillroute.com / Admin123!");
-      return;
+    try {
+      const formData = new URLSearchParams();
+      formData.append('username', email);
+      formData.append('password', password);
+
+      const response = await fetch('http://127.0.0.1:8000/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        setError(errorData.detail || "Invalid credentials.");
+        return;
+      }
+
+      const data = await response.json();
+      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('userEmail', email);
+      window.location.href = '/profiler';
+    } catch (err) {
+      setError("An error occurred during login. Please try again.");
     }
-    setError('');
-    window.location.href = '/profiler';
   };
 
   return (
