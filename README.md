@@ -19,7 +19,92 @@ The application is built on a modern decoupled architecture:
 - **Framework:** FastAPI (Python)
 - **Database:** PostgreSQL
 - **ORM & Migrations:** SQLAlchemy and Alembic
+- **Auth:** JWT (PyJWT) with bcrypt hashing
 - **Concurrency:** Async/Await handling via `aiohttp` for robust data pipelines
+
+### AI & Core Services
+- **LLM:** Groq API (LLaMA 3 8B) via `langchain_groq`
+- **Embeddings:** `SentenceTransformers` (`all-MiniLM-L6-v2`) for semantic matching
+- **External APIs:** YouTube Data API v3
+
+### Architecture Flow Diagram
+
+```mermaid
+graph TD
+    %% Styling
+    classDef frontend fill:#e0f2fe,stroke:#0284c7,stroke-width:2px;
+    classDef backend fill:#dcfce7,stroke:#16a34a,stroke-width:2px;
+    classDef external fill:#f3e8ff,stroke:#9333ea,stroke-width:2px;
+    classDef db fill:#fef9c3,stroke:#ca8a04,stroke-width:2px;
+
+    subgraph Frontend [React + Vite + Tailwind]
+        UI[Dashboard UI]:::frontend
+        Context[ChatContext & LocalStorage]:::frontend
+        Map[React Flow DAG Engine]:::frontend
+        Chat[AI Coach Widget]:::frontend
+        
+        UI <--> Context
+        Chat <--> Context
+        Context <--> Map
+    end
+
+    subgraph Backend [FastAPI Backend]
+        Auth[JWT Dependency 'get_current_user']:::backend
+        Progress[Progress API '/api/progress']:::backend
+        Path[Path Router '/api/path/generate']:::backend
+        Recs[Recs API '/api/resources/...']:::backend
+        Coach[Coach Agent '/api/chat/coach']:::backend
+        
+        PathGen[CTE DAG Generator]:::backend
+        YTOrch[YouTube Orchestrator]:::backend
+    end
+    
+    subgraph Intelligence [AI & External Services]
+        Groq[Groq LLaMA 3]:::external
+        Semantic[SentenceTransformers 'all-MiniLM']:::external
+        YT[YouTube Data API v3]:::external
+    end
+    
+    subgraph Database [PostgreSQL]
+        UserDB[(users & user_skill_progress)]:::db
+        SkillsDB[(skills & skill_prerequisites)]:::db
+        ResDB[(resources & resource_skills)]:::db
+        EmbedDB[(Skill Embeddings Vector)]:::db
+    end
+    
+    %% HTTP Requests
+    UI -- "Login / Signup" --> Auth
+    UI -- "Mark Complete/Incomplete" --> Progress
+    Map -- "Render Graph" --> Path
+    Map -- "Node Click" --> Recs
+    Chat -- "Send Intent" --> Coach
+    
+    %% Internal Backend Logic
+    Path --> PathGen
+    Recs --> YTOrch
+    
+    %% Auth validation
+    Progress -. "Validates Token" .-> Auth
+    Path -. "Validates Token (Opt)" .-> Auth
+    Coach -. "Validates Token" .-> Auth
+    
+    %% DB Queries
+    Auth ==> UserDB
+    Progress ==> UserDB
+    PathGen ==> UserDB
+    PathGen ==> SkillsDB
+    PathGen ==> EmbedDB
+    YTOrch ==> ResDB
+    Recs ==> ResDB
+    
+    %% AI Interactions
+    PathGen -- "Semantic Match Fallback" --> Semantic
+    PathGen -- "Goal Mapping Fallback" --> Groq
+    YTOrch -- "Generate Search Queries" --> Groq
+    YTOrch -- "Semantic Ranking" --> Semantic
+    YTOrch -- "Fetch Videos" --> YT
+    Coach -- "Extract Intent JSON" --> Groq
+```
 
 ### Ingestion Pipeline
 A production-grade, highly scalable asynchronous data pipeline designed to ingest and normalize external course datasets (like Coursera or Udemy):
@@ -64,6 +149,14 @@ Understanding how SkillRoute transforms a user's initial prompt into a highly pe
 - **Live Fetch & Cache**: It hits the live YouTube Data API. To ensure performance and save quotas, it aggressively deduplicates results and checks its local PostgreSQL cache before making external calls.
 - **Semantic Ranking & Verification**: The returned videos are semantically scored against the skill intent using a semantic matcher, and their URLs are asynchronously pinged to verify they aren't dead links.
 - **Delivery**: The verified, ranked videos are delivered back to the frontend, rendering as actionable "Watch Now" cards in the side panel, perfectly matched to the user's current learning node!
+
+### 5. Phase 1.9 Upgrades: Agentic Coach & Paid Discovery
+- **Authentic Authentication**: Integrated robust JWT authentication across all mutable endpoints to guarantee user progress is safely stored and isolated.
+- **Persistent Progress API**: Centralized progress tracking in a PostgreSQL `UserSkillProgress` model, allowing users to safely log out and resume without relying solely on local storage.
+- **AI Coach Intent Engine**: The floating AI Coach now uses an active Langchain/Groq intent extractor. Telling the bot "I already know Docker" translates into a strict backend `MARK_SKILL_COMPLETED` JSON action, syncing the DB and seamlessly triggering a frontend graph re-render.
+- **Dynamic Goal Fallback**: Advanced path generation routing first checks for exact and alias matches, then falls back to `SentenceTransformer` semantic embedding similarities, and only finally uses a highly constrained Groq prompt to decompose niche goals into verified DB concepts to prevent hallucinations.
+- **Paid Course PostgreSQL Discovery**: The recommendation engine now dynamically reads the user's budget state (FREE vs PAID) and queries internal PostgreSQL Coursera and Udemy resource ingestion tables, filtering and rendering full course previews natively inside the map's right sidebar.
+- **Map History Navigation**: An interactive Local map history stack maintaining up to 20 past graph states, letting users non-destructively `←` / `→` undo or redo layout changes triggered by chat.
 
 ## Local Setup & Installation
 
