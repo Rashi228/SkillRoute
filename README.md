@@ -29,81 +29,72 @@ The application is built on a modern decoupled architecture:
 
 ### Architecture Flow Diagram
 
-```mermaid
-graph TD
-    %% Styling
-    classDef frontend fill:#e0f2fe,stroke:#0284c7,stroke-width:2px;
-    classDef backend fill:#dcfce7,stroke:#16a34a,stroke-width:2px;
-    classDef external fill:#f3e8ff,stroke:#9333ea,stroke-width:2px;
-    classDef db fill:#fef9c3,stroke:#ca8a04,stroke-width:2px;
-
-    subgraph Frontend [React + Vite + Tailwind]
-        UI[Dashboard UI]:::frontend
-        Context[ChatContext & LocalStorage]:::frontend
-        Map[React Flow DAG Engine]:::frontend
-        Chat[AI Coach Widget]:::frontend
-        
-        UI <--> Context
-        Chat <--> Context
-        Context <--> Map
-    end
-
-    subgraph Backend [FastAPI Backend]
-        Auth[JWT Dependency 'get_current_user']:::backend
-        Progress[Progress API '/api/progress']:::backend
-        Path[Path Router '/api/path/generate']:::backend
-        Recs[Recs API '/api/resources/...']:::backend
-        Coach[Coach Agent '/api/chat/coach']:::backend
-        
-        PathGen[CTE DAG Generator]:::backend
-        YTOrch[YouTube Orchestrator]:::backend
-    end
-    
-    subgraph Intelligence [AI & External Services]
-        Groq[Groq LLaMA 3]:::external
-        Semantic[SentenceTransformers 'all-MiniLM']:::external
-        YT[YouTube Data API v3]:::external
-    end
-    
-    subgraph Database [PostgreSQL]
-        UserDB[(users & user_skill_progress)]:::db
-        SkillsDB[(skills & skill_prerequisites)]:::db
-        ResDB[(resources & resource_skills)]:::db
-        EmbedDB[(Skill Embeddings Vector)]:::db
-    end
-    
-    %% HTTP Requests
-    UI -- "Login / Signup" --> Auth
-    UI -- "Mark Complete/Incomplete" --> Progress
-    Map -- "Render Graph" --> Path
-    Map -- "Node Click" --> Recs
-    Chat -- "Send Intent" --> Coach
-    
-    %% Internal Backend Logic
-    Path --> PathGen
-    Recs --> YTOrch
-    
-    %% Auth validation
-    Progress -. "Validates Token" .-> Auth
-    Path -. "Validates Token (Opt)" .-> Auth
-    Coach -. "Validates Token" .-> Auth
-    
-    %% DB Queries
-    Auth ==> UserDB
-    Progress ==> UserDB
-    PathGen ==> UserDB
-    PathGen ==> SkillsDB
-    PathGen ==> EmbedDB
-    YTOrch ==> ResDB
-    Recs ==> ResDB
-    
-    %% AI Interactions
-    PathGen -- "Semantic Match Fallback" --> Semantic
-    PathGen -- "Goal Mapping Fallback" --> Groq
-    YTOrch -- "Generate Search Queries" --> Groq
-    YTOrch -- "Semantic Ranking" --> Semantic
-    YTOrch -- "Fetch Videos" --> YT
-    Coach -- "Extract Intent JSON" --> Groq
+```text
+         User Onboarding (Profiler)
+                 |
+                 ▼
+         Chat Profiler API (/api/chat/profiler)
+      ├─ Receive User Message & History
+      ├─ LangChain System Prompt Assembly
+      ├─ Groq LLaMA 3 Structured Output
+      ├─ Extract Profile (Goal, Skills, Budget, Time)
+      └─ Return JSON Profile or Follow-up Question
+                 |
+                 ▼
+        Frontend Profile Storage
+      ├─ Update ChatContext State
+      └─ Save to LocalStorage
+                 |
+                 ▼
+         DAG Generation API (/api/path/generate)
+      ├─ Read JWT Token (if authenticated)
+      ├─ Resolve Target Goal (Exact/Alias/Semantic/Groq)
+      ├─ Load User's Completed Skills (DB Progress)
+      ├─ Execute Recursive CTE (Prerequisites Tree)
+      ├─ Perform Gap Analysis (Current vs Target)
+      ├─ Calculate 2D Node Layout Coordinates
+      └─ Return Nodes and Edges Array
+                 |
+                 ▼
+         Dashboard Rendering (React Flow)
+      ├─ Render 3-Column Layout
+      ├─ Draw Interactive Node Map
+      ├─ Calculate Fastest/Balanced/Deep Routes
+      └─ Highlight Node States (Locked/Next/Completed)
+                 |
+                 ▼
+         Node Interaction (User Clicks "Next" Skill)
+                 |
+                 ▼
+         Dual Recommendation Engines
+                 |
+   ┌─────────────┴─────────────┐
+   ▼                           ▼
+YouTube Discovery        Curated Resources
+   |                           |
+   ├─ Check DB Cache           ├─ Parse User Budget (Free/Paid)
+   ├─ Groq Search Queries      ├─ Query DB Courses (Coursera/Udemy)
+   ├─ Fetch from YouTube API   ├─ Fetch Practice Platforms
+   ├─ Semantic Cosine Ranking  ├─ Fetch Official Documentation
+   ├─ Filter by Relevance      ├─ Validate URLs (aiohttp)
+   └─ Save to PostgreSQL       └─ Groq Project Idea Generation
+                 |                           |
+                 └─────────────┬─────────────┘
+                               ▼
+                        Right Sidebar UI
+                 ├─ Render "Why you need this"
+                 ├─ Display YouTube Video Cards (EN/HI)
+                 ├─ Display Verified Course Cards
+                 ├─ Display Practice & Docs Links
+                 └─ Display Project Builder Card
+                               |
+                               ▼
+                      AI Coach & Progress
+                 ├─ User Opens Chat Widget
+                 ├─ Sends "I learned this" 
+                 ├─ Coach extracts MARK_SKILL_COMPLETED
+                 ├─ API updates UserSkillProgress table
+                 └─ Triggers DAG Regeneration (Loop back)
 ```
 
 ### Ingestion Pipeline
