@@ -14,7 +14,15 @@ from services.skill_mapping.semantic_matcher import SemanticMatcher
 from services.skill_mapping.embedding_store import SkillEmbeddingStore
 from agents.coach import llm
 
+# Cache for resolved targets to prevent redundant LLM calls
+resolved_target_cache = {}
+
 def resolve_target_skill(db: Session, target_name: str) -> Optional[models.Skill]:
+    if target_name in resolved_target_cache:
+        cached_id = resolved_target_cache[target_name]
+        skill = db.query(models.Skill).filter(models.Skill.id == cached_id).first()
+        if skill: return skill
+        
     # 1. Exact Match
     skill = db.query(models.Skill).filter(models.Skill.name.ilike(target_name)).first()
     if skill: return skill
@@ -53,7 +61,9 @@ def resolve_target_skill(db: Session, target_name: str) -> Optional[models.Skill
         res = chain.invoke({"goal": target_name, "skills": ", ".join(skill_names)})
         mapped_name = res.content.strip()
         skill = db.query(models.Skill).filter(models.Skill.name.ilike(mapped_name)).first()
-        if skill: return skill
+        if skill:
+            resolved_target_cache[target_name] = skill.id
+            return skill
 
     return None
 
@@ -272,3 +282,84 @@ def generate_path(request: PathGenerationRequest, db: Session = Depends(get_db),
         "nodes": nodes,
         "edges": rf_edges
     }
+
+class ExplainNodeRequest(BaseModel):
+    skill_id: int
+    target_goal: str
+
+@router.post("/explain_node")
+def explain_node(request: ExplainNodeRequest, db: Session = Depends(get_db)):
+    # 1. Check ExplanationCache
+    cached = db.query(models.ExplanationCache).filter(
+        models.ExplanationCache.skill_id == request.skill_id,
+        models.ExplanationCache.target_goal == request.target_goal
+    ).first()
+    
+    if cached:
+        return {"explanation": cached.explanation_text}
+        
+    # 2. Fetch Skill + prerequisite relationships
+    skill = db.query(models.Skill).filter(models.Skill.id == request.skill_id).first()
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+        
+    target = resolve_target_skill(db, request.target_goal)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target goal not found")
+        
+    # If the skill IS the target goal
+    if skill.id == target.id:
+        return {"explanation": f"Mastering {skill.name} is your ultimate learning destination."}
+
+    # Gather prerequisite facts (what does this skill unlock?)
+    unlocks = db.query(models.Skill.name).join(
+        models.SkillPrerequisite, models.SkillPrerequisite.skill_id == models.Skill.id
+    ).filter(models.SkillPrerequisite.prerequisite_id == skill.id).all()
+    
+    unlock_names = [u[0] for u in unlocks]
+    unlock_fact = f"It is a prerequisite for: {', '.join(unlock_names)}." if unlock_names else "It is a foundational concept."
+    
+    # 3. Construct strictly grounded prompt
+    if not llm:
+        return {"explanation": "This skill is part of your learning path toward the selected goal."}
+        
+    from langchain_core.prompts import ChatPromptTemplate
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """You are an educational assistant.
+Explain in 1-2 concise lines why the user needs to learn {skill_name} to reach their goal of {target_goal}.
+
+Facts you MUST rely on:
+- {skill_name} covers: {skill_description}.
+- {unlock_fact}
+
+Rules:
+1. ONLY use the facts supplied above.
+2. DO NOT invent prerequisites.
+3. DO NOT invent skills.
+4. DO NOT explain internal reasoning.
+5. Provide a direct, concise user-facing explanation.""")
+    ])
+    
+    try:
+        chain = prompt | llm
+        res = chain.invoke({
+            "skill_name": skill.name,
+            "target_goal": target.name,
+            "skill_description": skill.description or "core concepts",
+            "unlock_fact": unlock_fact
+        })
+        explanation = res.content.strip()
+    except Exception as e:
+        explanation = "This skill is part of your learning path toward the selected goal."
+        
+    # 4. Store in ExplanationCache
+    new_cache = models.ExplanationCache(
+        skill_id=request.skill_id,
+        target_goal=request.target_goal,
+        explanation_text=explanation
+    )
+    db.add(new_cache)
+    db.commit()
+    
+    return {"explanation": explanation}
+

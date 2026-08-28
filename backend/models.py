@@ -208,3 +208,32 @@ class PathNode(Base):
 
     path = relationship("LearningPath", back_populates="nodes")
     resource = relationship("Resource")
+
+# Phase 1.9 / AMPlified Additions
+
+class ExplanationCache(Base):
+    """Caches grounded RAG explanations for node prerequisites."""
+    __tablename__ = "explanation_cache"
+    id = Column(Integer, primary_key=True, index=True)
+    skill_id = Column(Integer, ForeignKey("skills.id"), index=True)
+    target_goal = Column(String, index=True)
+    explanation_text = Column(Text, nullable=False)
+    generated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class PathTransition(Base):
+    """OPTIONAL schema for tracking real user transitions for future collaborative filtering."""
+    __tablename__ = "path_transitions"
+    id = Column(Integer, primary_key=True, index=True)
+    from_skill_id = Column(Integer, ForeignKey("skills.id"), nullable=True)
+    to_skill_id = Column(Integer, ForeignKey("skills.id"), nullable=False)
+    count = Column(Integer, default=1)
+    
+class UserSkillStreak(Base):
+    """Schema for future gamification tracking."""
+    __tablename__ = "user_skill_streaks"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    current_streak = Column(Integer, default=0)
+    longest_streak = Column(Integer, default=0)
+    last_active_date = Column(DateTime(timezone=True), nullable=True)
+

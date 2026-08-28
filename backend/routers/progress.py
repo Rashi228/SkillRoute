@@ -46,6 +46,11 @@ def mark_skill_incomplete(skill_id: int, db: Session = Depends(get_db), current_
     update_skill_progress(db, current_user.id, skill_id, "INCOMPLETE")
     return {"status": "SUCCESS", "message": "Skill marked as incomplete"}
 
+@router.post("/{skill_id}/struggling")
+def mark_skill_struggling(skill_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    update_skill_progress(db, current_user.id, skill_id, "STRUGGLING")
+    return {"status": "SUCCESS", "message": "Skill marked as struggling"}
+
 @router.get("")
 def get_progress(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     skill_ids = get_user_completed_skill_ids(db, current_user.id)

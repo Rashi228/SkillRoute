@@ -19,7 +19,7 @@ class YouTubeSearchIntent:
             
         self.calls_made = 0
         
-    def generate_queries(self, skill_name: str, aliases: List[str], learner_level: str, goal: str, constraints: Dict[str, Any]) -> List[Dict[str, str]]:
+    def generate_queries(self, skill_name: str, aliases: List[str], learner_level: str, goal: str, constraints: Dict[str, Any], is_struggling: bool = False) -> List[Dict[str, str]]:
         """
         Generates optimized YouTube search queries using Groq.
         Forces exactly 1 English and 1 Hindi query unless a custom intent is provided.
@@ -32,21 +32,32 @@ class YouTubeSearchIntent:
             ]
 
         if not self.llm:
-            return self._fallback_queries(skill_name, aliases, learner_level)
+            return self._fallback_queries(skill_name, aliases, learner_level, is_struggling)
             
         self.calls_made += 1
         
         # Force strict deterministic structure rather than relying entirely on LLM JSON schema for the exact languages
-        queries = [
-            {"query": f"{skill_name} tutorial {learner_level} in english", "language": "en"},
-            {"query": f"{skill_name} tutorial {learner_level} in hindi", "language": "hi"}
-        ]
+        if is_struggling:
+            queries = [
+                {"query": f"{skill_name} beginner-friendly step-by-step intuitive explanation tutorial in english", "language": "en"},
+                {"query": f"{skill_name} beginner-friendly step-by-step intuitive explanation tutorial in hindi", "language": "hi"}
+            ]
+        else:
+            queries = [
+                {"query": f"{skill_name} tutorial {learner_level} in english", "language": "en"},
+                {"query": f"{skill_name} tutorial {learner_level} in hindi", "language": "hi"}
+            ]
         return queries
             
-    def _fallback_queries(self, skill_name: str, aliases: List[str], learner_level: str) -> List[Dict[str, str]]:
+    def _fallback_queries(self, skill_name: str, aliases: List[str], learner_level: str, is_struggling: bool = False) -> List[Dict[str, str]]:
         """
         Deterministic fallback queries if LLM fails.
         """
+        if is_struggling:
+            return [
+                {"query": f"{skill_name} beginner-friendly fundamentals tutorial in english", "language": "en"},
+                {"query": f"{skill_name} beginner-friendly fundamentals tutorial in hindi", "language": "hi"}
+            ]
         return [
             {"query": f"{skill_name} tutorial {learner_level} in english", "language": "en"},
             {"query": f"{skill_name} tutorial {learner_level} in hindi", "language": "hi"}

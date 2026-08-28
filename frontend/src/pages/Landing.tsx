@@ -298,11 +298,11 @@ function LandingLoginForm() {
       <form onSubmit={handleLogin} className="space-y-4">
         <div>
           <label className="block text-sm font-bold text-slate-700 mb-1">Email</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@skillroute.com" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 outline-none transition-all bg-slate-50" required />
+          <input type="email" value={email} onChange={(e: any) => setEmail(e.target.value)} placeholder="admin@skillroute.com" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 outline-none transition-all bg-slate-50" required />
         </div>
         <div>
           <label className="block text-sm font-bold text-slate-700 mb-1">Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Admin123!" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 outline-none transition-all bg-slate-50" required />
+          <input type="password" value={password} onChange={(e: any) => setPassword(e.target.value)} placeholder="Admin123!" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 outline-none transition-all bg-slate-50" required />
         </div>
         <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-md hover:shadow-lg mt-2 flex items-center justify-center gap-2">
           Sign In & Start Journey <ArrowRight className="w-4 h-4" />
@@ -346,3 +346,5 @@ function TimelineStep({ number, icon: Icon, title, text, link, isCenter = false 
     </div>
   )
 }
+
+

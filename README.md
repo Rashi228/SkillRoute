@@ -1,8 +1,8 @@
-# SkillRoute
+# SkillRoute — AI-Powered Personalized Learning Path Recommender
 
 SkillRoute is an intelligent, personalized learning platform that dynamically maps out optimal educational journeys based on a user's skills, budget, and learning preferences. 
 
-The platform acts as a GPS for education, moving away from static lists of courses and instead providing a highly interactive, node-based Directed Acyclic Graph (DAG) that visualizes prerequisites, core concepts, and recommended resources to reach a specific career destination.
+Built on a powerful **Hybrid Recommender** engine and **Grounded RAG (Retrieval-Augmented Generation)** architecture, the platform acts as a GPS for education. It moves away from static lists of courses and instead provides a highly interactive, node-based Directed Acyclic Graph (DAG) that visualizes prerequisites, core concepts, and recommended resources to reach a specific career destination without hallucinations.
 
 ## System Architecture
 
@@ -27,74 +27,77 @@ The application is built on a modern decoupled architecture:
 - **Embeddings:** `SentenceTransformers` (`all-MiniLM-L6-v2`) for semantic matching
 - **External APIs:** YouTube Data API v3
 
-### Architecture Flow Diagram
+### Architecture Data Flow Diagram
 
 ```text
-         User Onboarding (Profiler)
-                 |
-                 ▼
-         Chat Profiler API (/api/chat/profiler)
-      ├─ Receive User Message & History
-      ├─ LangChain System Prompt Assembly
-      ├─ Groq LLaMA 3 Structured Output
-      ├─ Extract Profile (Goal, Skills, Budget, Time)
-      └─ Return JSON Profile or Follow-up Question
-                 |
-                 ▼
-        Frontend Profile Storage
-      ├─ Update ChatContext State
-      └─ Save to LocalStorage
-                 |
-                 ▼
-         DAG Generation API (/api/path/generate)
-      ├─ Read JWT Token (if authenticated)
-      ├─ Resolve Target Goal (Exact/Alias/Semantic/Groq)
-      ├─ Load User's Completed Skills (DB Progress)
-      ├─ Execute Recursive CTE (Prerequisites Tree)
-      ├─ Perform Gap Analysis (Current vs Target)
-      ├─ Calculate 2D Node Layout Coordinates
-      └─ Return Nodes and Edges Array
-                 |
-                 ▼
-         Dashboard Rendering (React Flow)
-      ├─ Render 3-Column Layout
-      ├─ Draw Interactive Node Map
-      ├─ Calculate Fastest/Balanced/Deep Routes
-      └─ Highlight Node States (Locked/Next/Completed)
-                 |
-                 ▼
-         Node Interaction (User Clicks "Next" Skill)
-                 |
-                 ▼
-         Dual Recommendation Engines
-                 |
-   ┌─────────────┴─────────────┐
-   ▼                           ▼
-YouTube Discovery        Curated Resources
-   |                           |
-   ├─ Check DB Cache           ├─ Parse User Budget (Free/Paid)
-   ├─ Groq Search Queries      ├─ Query DB Courses (Coursera/Udemy)
-   ├─ Fetch from YouTube API   ├─ Fetch Practice Platforms
-   ├─ Semantic Cosine Ranking  ├─ Fetch Official Documentation
-   ├─ Filter by Relevance      ├─ Validate URLs (aiohttp)
-   └─ Save to PostgreSQL       └─ Groq Project Idea Generation
-                 |                           |
-                 └─────────────┬─────────────┘
-                               ▼
-                        Right Sidebar UI
-                 ├─ Render "Why you need this"
-                 ├─ Display YouTube Video Cards (EN/HI)
-                 ├─ Display Verified Course Cards
-                 ├─ Display Practice & Docs Links
-                 └─ Display Project Builder Card
-                               |
-                               ▼
-                      AI Coach & Progress
-                 ├─ User Opens Chat Widget
-                 ├─ Sends "I learned this" 
-                 ├─ Coach extracts MARK_SKILL_COMPLETED
-                 ├─ API updates UserSkillProgress table
-                 └─ Triggers DAG Regeneration (Loop back)
+                          USER
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │   AI PROFILER   │ (React + Groq Llama-3)
+                  └───────┬─────────┘
+                          │ 1. Conversational intent extracted
+                          │ 2. JSON: {goal, current_skills, budget, time}
+                          ▼
+            ┌───────────────────────────┐
+            │   TARGET RESOLUTION API   │ (FastAPI: /api/path/generate)
+            └─────────────┬─────────────┘
+                          │ 1. Exact/Alias Match 
+                          │ 2. Semantic Similarity (SentenceTransformers)
+                          │ 3. Groq LLM Fallback & Cache (resolved_target_cache)
+                          ▼
+            ┌───────────────────────────┐
+            │   SKILL / PREREQ DB (PG)  │ (Neon Postgres)
+            └─────────────┬─────────────┘
+                          │ 1. Recursive CTE Traversal
+                          │ 2. Filter via UserSkillProgress
+                          │ 3. Calculate (x,y) graph coordinates
+                          ▼
+                  ┌─────────────────┐
+                  │  LEARNING MAP   │ (React Flow @xyflow/react)
+                  └───────┬─────────┘
+                          │ (Node Interactivity Layer)
+           ┌──────────────┼──────────────┐
+           │              │              │
+           ▼              ▼              ▼
+    [Complete Node]  [Struggling]    [AI Coach Chat]
+           │              │              │
+           │              ▼              ▼
+           │        Adaptive Loop     Intent Engine (Groq)
+           │        (Beginner Query)  (MARK_SKILL_COMPLETED)
+           │              │              │
+           └──────────────┼──────────────┘
+                          │
+                   [Click Skill Node]
+                          │
+          ┌───────────────┼────────────────────────┐
+          ▼               ▼                        ▼
+    [Explain RAG]    [Discovery]              [Progress API]
+   /api/path/explain      │                  /api/progress/{id}
+   Grounding DB facts     │                        │
+          │               │                        │
+          └───────────────┼────────────────────────┘
+                          │ (Dual-Engine Execution)
+         ┌────────────────┴────────────────┐
+         ▼                                 ▼
+[YouTube API Pipeline]            [Curated DB Pipeline]
+ /api/resources/youtube/...       /api/resources/recommendations
+         │                                 │
+         ├─ Check Local Cache              ├─ Filter by User Budget
+         ├─ Groq Multi-Query Generation    ├─ Fetch PG Vector Coursera/Udemy
+         ├─ YouTube Data API v3            ├─ Fetch Practice Platforms
+         ├─ Semantic Cosine Rank (0-1)     ├─ Check Verification Status
+         └─ Asynchronous Link Ping         └─ Generate Groq Project Idea
+         │                                 │
+         └────────────────┬────────────────┘
+                          ▼
+                 [Hybrid Recommender]
+                          │ α·Relevance + β·Difficulty + γ·Quality
+                          ▼
+                  [Match % + URLs]
+                          │ (Sidebar UI Rendering)
+                          ▼
+                         USER
 ```
 
 ### Ingestion Pipeline

@@ -14,6 +14,7 @@ class DiscoveryRequest(BaseModel):
     learner_level: str = Field("INTERMEDIATE", description="BEGINNER, INTERMEDIATE, or ADVANCED")
     goal: str = Field("General learning", description="Learner's objective")
     constraints: Dict[str, Any] = Field(default_factory=dict, description="Constraints like max_hours, language")
+    is_struggling: bool = Field(False, description="Whether the user is currently struggling with this skill")
 
 @router.post("/discover")
 async def discover_youtube_resources(req: DiscoveryRequest, db: Session = Depends(get_db)):
@@ -26,7 +27,8 @@ async def discover_youtube_resources(req: DiscoveryRequest, db: Session = Depend
             skill_id=req.skill_id,
             learner_level=req.learner_level,
             goal=req.goal,
-            constraints=req.constraints
+            constraints=req.constraints,
+            is_struggling=req.is_struggling
         )
         return result
     except ValueError as e:

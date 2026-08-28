@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { 
   ReactFlow, Controls, Background, MiniMap, 
   applyNodeChanges, applyEdgeChanges, addEdge,
@@ -9,13 +9,13 @@ import {
   Target, Map as MapIcon, Loader2, Bot, Send, 
   ChevronDown, MessageSquare, CheckCircle, Lock,
   PlaySquare, BookOpen, Wrench, X, Compass, Activity, 
-  ArrowRight
+  ArrowRight, AlertCircle
 } from 'lucide-react';
 import { useChatContext } from '../context/ChatContext';
 
 // --- CUSTOM NODES ---
 
-const ResourceNode = ({ data, selected }) => {
+const ResourceNode = ({ data, selected }: { data: any, selected: any }) => {
   const isGoal = data.status === 'goal';
   const isCurrent = data.status === 'current';
   
@@ -159,14 +159,17 @@ const initialEdges = [
 ];
 
 export default function InteractiveMap() {
-  const [nodes, setNodes] = useState([]);
-  const [edges, setEdges] = useState([]);
-  const [selectedNode, setSelectedNode] = useState(null);
+  const [nodes, setNodes] = useState<any[]>([]);
+  const [edges, setEdges] = useState<any[]>([]);
+  const [selectedNode, setSelectedNode] = useState<any>(null);
+  const [nodeExplanation, setNodeExplanation] = useState<string | null>(null);
+  const [loadingExplanation, setLoadingExplanation] = useState(false);
   const [activeRouteMode, setActiveRouteMode] = useState('BALANCED');
   const [loadingGraph, setLoadingGraph] = useState(true);
-  const [graphData, setGraphData] = useState(null);
-  const [graphHistory, setGraphHistory] = useState([]);
+  const [graphData, setGraphData] = useState<any>(null);
+  const [graphHistory, setGraphHistory] = useState<any[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const historyIndexRef = useRef(-1);
   
   // Dynamic metrics derived from graph
   const completedNodesCount = nodes.filter(n => n.data?.status === 'completed').length;
@@ -188,11 +191,13 @@ export default function InteractiveMap() {
   
   // Real-time discovery state
   const [loadingResources, setLoadingResources] = useState(false);
-  const [sidebarResources, setSidebarResources] = useState([]);
+  const [sidebarResources, setSidebarResources] = useState<any[]>([]);
+  const [strugglingSkills, setStrugglingSkills] = useState<number[]>([]);
 
   // Chat Overlay and Progress State
   const { messages, setMessages, profile, completedSkills, markComplete, markIncomplete } = useChatContext();
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const latestSkillIdRef = useRef<number | null>(null);
   const [chatInput, setChatInput] = useState('');
 
   const nodeTypes = useMemo(() => ({ resource: ResourceNode }), []);
@@ -228,11 +233,16 @@ export default function InteractiveMap() {
           
           if (!isHistoryNavigation) {
              setGraphHistory(prev => {
-                 const newHistory = [...prev.slice(0, historyIndex + 1), { nodes: data.nodes, edges: data.edges, data }];
+                 const currentIdx = historyIndexRef.current;
+                 const newHistory = [...prev.slice(0, currentIdx + 1), { nodes: data.nodes, edges: data.edges, data }];
                  if (newHistory.length > 20) newHistory.shift();
                  return newHistory;
              });
-             setHistoryIndex(prev => prev >= 19 ? 19 : prev + 1);
+             setHistoryIndex(prev => {
+                 const next = prev >= 19 ? 19 : prev + 1;
+                 historyIndexRef.current = next;
+                 return next;
+             });
           }
         }
       } else {
@@ -245,16 +255,17 @@ export default function InteractiveMap() {
     } finally {
       setLoadingGraph(false);
     }
-  }, [profile, completedSkills, historyIndex]);
+  }, [profile, completedSkills]);
 
   useEffect(() => {
     fetchGraph();
   }, [fetchGraph]);
 
-  const navigateHistory = (direction) => {
+  const navigateHistory = (direction: any) => {
     const newIndex = historyIndex + direction;
     if (newIndex >= 0 && newIndex < graphHistory.length) {
         setHistoryIndex(newIndex);
+        historyIndexRef.current = newIndex;
         const state = graphHistory[newIndex];
         setNodes(state.nodes);
         setEdges(state.edges);
@@ -262,42 +273,31 @@ export default function InteractiveMap() {
     }
   };
 
-  const onNodesChange = useCallback((changes) => setNodes((nds) => applyNodeChanges(changes, nds)), []);
-  const onEdgesChange = useCallback((changes) => setEdges((eds) => applyEdgeChanges(changes, eds)), []);
+  const onNodesChange = useCallback((changes: any) => setNodes((nds) => applyNodeChanges(changes, nds)), []);
+  const onEdgesChange = useCallback((changes: any) => setEdges((eds) => applyEdgeChanges(changes, eds)), []);
   
-  const [recommendations, setRecommendations] = useState(null);
+  const [recommendations, setRecommendations] = useState<any>(null);
 
-  const onNodeClick = useCallback(async (event, node) => {
-    if (node.data.status === 'locked') return; // Do not open panel for locked nodes
-    setSelectedNode(node);
-    
-    // Check if we need to fetch resources
-    if (!node.data.skill_id) {
-        setSidebarResources([]);
-        setRecommendations(null);
-        return;
-    }
-    
+  const fetchResourcesForSkill = async (skillId: number, isStruggling: boolean) => {
     setLoadingResources(true);
     setSidebarResources([]);
     setRecommendations(null);
-    
     try {
         const payload = {
-            skill_id: node.data.skill_id,
+            skill_id: skillId,
             learner_level: "INTERMEDIATE",
             goal: profile?.target_goal || "Production RAG Engineer",
-            constraints: { budget: profile?.budget || "FREE" }
+            constraints: { budget: profile?.budget || "FREE" },
+            is_struggling: isStruggling
         };
 
         const recPayload = {
-            skill_id: node.data.skill_id,
+            skill_id: skillId,
             learner_level: "INTERMEDIATE",
             goal: profile?.target_goal || "Production RAG Engineer",
             budget: profile?.budget || "FREE"
         };
 
-        // Fire both requests concurrently
         const [ytRes, recRes] = await Promise.all([
           fetch('http://127.0.0.1:8000/api/resources/youtube/discover', {
               method: 'POST',
@@ -311,19 +311,22 @@ export default function InteractiveMap() {
           })
         ]);
         
+        if (latestSkillIdRef.current !== skillId) return;
+
         let fetchedYt = [];
         let fetchedRecs = null;
 
-        if (ytRes.ok) {
+                if (ytRes.ok) {
+            if (latestSkillIdRef.current !== skillId) return;
             const data = await ytRes.json();
             fetchedYt = data.resources || [];
         }
         
-        if (recRes.ok) {
+                if (recRes.ok) {
+            if (latestSkillIdRef.current !== skillId) return;
             fetchedRecs = await recRes.json();
             setRecommendations(fetchedRecs);
             
-            // If project recommends a tutorial, fetch it concurrently as well, but wait for it
             if (fetchedRecs?.project?.tutorial_search_intent) {
                const projectPayload = {
                   ...payload,
@@ -341,15 +344,55 @@ export default function InteractiveMap() {
             }
         }
         setSidebarResources(fetchedYt);
-
     } catch (err) {
         console.error("Discovery failed", err);
     } finally {
         setLoadingResources(false);
     }
-  }, [profile]);
+  };
 
-  const handleChatSubmit = async (e) => {
+  const onNodeClick = useCallback(async (event: any, node: any) => {
+    if (node.data.status === 'locked') return; 
+    setSelectedNode(node);
+    latestSkillIdRef.current = node.data.skill_id;
+    
+    if (!node.data.skill_id) {
+        setSidebarResources([]);
+        setRecommendations(null);
+        setNodeExplanation(null);
+        return;
+    }
+    
+    setLoadingExplanation(true);
+    setNodeExplanation(null);
+    
+    fetch('http://127.0.0.1:8000/api/path/explain_node', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            skill_id: node.data.skill_id,
+            target_goal: profile?.target_goal || "Production RAG Engineer"
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        setNodeExplanation(data.explanation);
+    })
+    .catch(() => {
+        setNodeExplanation("This skill is part of your learning path toward the selected goal.");
+    })
+    .finally(() => {
+        setLoadingExplanation(false);
+    });
+    
+    // Check if skill is struggling from state
+    // We capture state using the current value in dependency array.
+    // However, onNodeClick is memoized, so we rely on the skill ID to fetch.
+    // Instead of doing it here directly using outdated state, let's just use the helper.
+    fetchResourcesForSkill(node.data.skill_id, strugglingSkills.includes(node.data.skill_id));
+  }, [profile, strugglingSkills]);
+
+  const handleChatSubmit = async (e: any) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
     const userMsg = chatInput;
@@ -390,7 +433,7 @@ export default function InteractiveMap() {
     }
   };
 
-  const handleRouteSelect = (mode) => {
+  const handleRouteSelect = (mode: any) => {
     setActiveRouteMode(mode);
   };
 
@@ -516,7 +559,7 @@ export default function InteractiveMap() {
                 <button className="text-teal-100 hover:text-white transition-colors"><ChevronDown className="w-5 h-5" /></button>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
-                {messages.map((msg, idx) => (
+                {messages.map((msg: any, idx: any) => (
                   <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`px-3 py-2 rounded-xl text-xs max-w-[85%] shadow-sm ${
                       msg.role === 'user' ? 'bg-[#2D6A62] text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-700 rounded-bl-none'
@@ -528,7 +571,7 @@ export default function InteractiveMap() {
               </div>
               <div className="p-3 bg-white border-t border-slate-100">
                 <form onSubmit={handleChatSubmit} className="relative">
-                  <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Modify path..." className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-teal-500 outline-none text-xs text-slate-900" />
+                  <input type="text" value={chatInput} onChange={(e: any) => setChatInput(e.target.value)} placeholder="Modify path..." className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-teal-500 outline-none text-xs text-slate-900" />
                   <button type="submit" className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 bg-teal-100 text-teal-600 rounded hover:bg-teal-500 hover:text-white transition-colors"><Send className="w-3 h-3" /></button>
                 </form>
               </div>
@@ -560,9 +603,16 @@ export default function InteractiveMap() {
                 </div>
                 
                 <h3 className="text-sm font-bold text-slate-900 mb-2">Why you need this</h3>
-                <p className="text-xs text-slate-600 leading-relaxed mb-6">
-                  {selectedNode.data.status === 'goal' ? `Mastering ${selectedNode.data.skill_name} is your ultimate learning destination.` : `Learning ${selectedNode.data.skill_name} is a crucial stepping stone. It provides the required knowledge to unlock advanced concepts in your ${profile?.target_goal || 'learning'} journey.`}
-                </p>
+                {loadingExplanation ? (
+                  <div className="mb-6 space-y-2">
+                    <div className="h-3 bg-slate-200 rounded animate-pulse w-full"></div>
+                    <div className="h-3 bg-slate-200 rounded animate-pulse w-4/5"></div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-600 leading-relaxed mb-6">
+                    {nodeExplanation || "This skill is part of your learning path toward the selected goal."}
+                  </p>
+                )}
 
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
@@ -588,7 +638,7 @@ export default function InteractiveMap() {
                   </div>
                 ) : sidebarResources.filter(r => !r._is_project_tutorial).length > 0 ? (
                   <div className="space-y-3 mb-6">
-                    {sidebarResources.filter(r => !r._is_project_tutorial).map((res, i) => (
+                    {sidebarResources.filter(r => !r._is_project_tutorial).map((res: any, i: any) => (
                       <div key={i} className="p-3 bg-white border border-slate-200 shadow-sm rounded-xl hover:border-red-300 transition-colors group">
                         <div className="flex gap-3 mb-2">
                           <div className="w-20 h-14 rounded overflow-hidden flex-shrink-0 bg-slate-100">
@@ -599,7 +649,10 @@ export default function InteractiveMap() {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-xs font-bold text-slate-900 leading-tight mb-1 line-clamp-2" title={res.title}>{res.title}</div>
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="text-xs font-bold text-slate-900 leading-tight mb-1 line-clamp-2" title={res.title}>{res.title}</div>
+                              {res.match_percentage && <div className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold whitespace-nowrap flex-shrink-0">{res.match_percentage}% Match</div>}
+                            </div>
                             <div className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap">
                               <span className="font-semibold text-slate-700">{res.channel || 'YouTube'}</span>
                               {res.language && <span className="bg-slate-100 px-1 rounded">{res.language.toUpperCase()}</span>}
@@ -622,11 +675,14 @@ export default function InteractiveMap() {
                    <div className="mb-6">
                       <h3 className="text-sm font-bold text-slate-900 mb-2 border-b pb-1">🎓 Courses</h3>
                       <div className="space-y-2">
-                         {recommendations.courses.map((c, i) => (
+                         {recommendations.courses.map((c: any, i: any) => (
                             <div key={i} className="p-3 border border-slate-200 rounded-lg bg-slate-50 flex flex-col gap-2 shadow-sm hover:border-indigo-200 transition-colors">
                                <div className="flex justify-between items-start">
                                   <div className="font-bold text-xs text-slate-800 leading-tight pr-2">{c.title}</div>
-                                  <div className="text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold whitespace-nowrap tracking-wide">{c.provider}</div>
+                                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                    <div className="text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold whitespace-nowrap tracking-wide">{c.provider}</div>
+                                    {c.match_percentage && <div className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">{c.match_percentage}% Match</div>}
+                                  </div>
                                </div>
                                <div className="flex justify-between items-center text-[10px]">
                                   <div className="text-slate-500 font-medium flex items-center gap-1">
@@ -649,11 +705,14 @@ export default function InteractiveMap() {
                    <div className="mb-6">
                       <h3 className="text-sm font-bold text-slate-900 mb-2 border-b pb-1">💻 Practice</h3>
                       <div className="space-y-2">
-                         {recommendations.practice.map((p, i) => (
+                         {recommendations.practice.map((p: any, i: any) => (
                             <div key={i} className="p-3 border border-slate-200 rounded-lg bg-slate-50">
                                <div className="flex justify-between items-start mb-1">
                                   <div className="font-bold text-sm text-slate-800">{p.platform}</div>
-                                  <div className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold">{p.cost}</div>
+                                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                    <div className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold">{p.cost}</div>
+                                    {p.match_percentage && <div className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">{p.match_percentage}% Match</div>}
+                                  </div>
                                </div>
                                <div className="text-xs text-slate-600 mb-2">{p.why}</div>
                                <a href={p.url} target="_blank" rel="noreferrer" className="w-full py-1.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-xs font-bold rounded-lg flex items-center justify-center gap-2">
@@ -679,7 +738,7 @@ export default function InteractiveMap() {
                       </div>
                       
                       {/* Project Tutorials */}
-                      {sidebarResources.filter(r => r._is_project_tutorial).map((res, i) => (
+                      {sidebarResources.filter(r => r._is_project_tutorial).map((res: any, i: any) => (
                           <div key={i} className="flex gap-3 mb-2 p-2 border border-slate-200 rounded hover:bg-slate-50">
                              <div className="flex-1 min-w-0">
                                 <div className="text-xs font-bold text-slate-800 truncate" title={res.title}>{res.title}</div>
@@ -698,10 +757,13 @@ export default function InteractiveMap() {
                    <div className="mb-6">
                       <h3 className="text-sm font-bold text-slate-900 mb-2 border-b pb-1">📖 Read & Understand</h3>
                       <div className="space-y-2">
-                         {recommendations.read.map((r, i) => (
+                         {recommendations.read.map((r: any, i: any) => (
                             <div key={i} className="flex justify-between items-center p-2.5 border border-slate-200 rounded-lg bg-slate-50">
                                <div>
-                                  <div className="text-xs font-bold text-slate-800">{r.title}</div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-xs font-bold text-slate-800">{r.title}</div>
+                                    {r.match_percentage && <div className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">{r.match_percentage}% Match</div>}
+                                  </div>
                                   <div className="text-[10px] text-slate-500">{r.source}</div>
                                </div>
                                <a href={r.url} target="_blank" rel="noreferrer" className="px-3 py-1 bg-white border border-slate-300 text-slate-700 text-xs font-bold rounded hover:bg-slate-100">
@@ -730,19 +792,37 @@ export default function InteractiveMap() {
                          Mark as Incomplete
                       </button>
                    ) : (
-                      <button onClick={async () => {
-                         const token = localStorage.getItem('token');
-                         if (token) {
-                             await fetch(`http://127.0.0.1:8000/api/progress/${selectedNode.data.skill_id}/complete`, {
-                                 method: 'POST',
-                                 headers: { 'Authorization': `Bearer ${token}` }
-                             });
-                         }
-                         markComplete(selectedNode.data.skill_id);
-                         setSelectedNode(null);
-                      }} className="w-full py-2.5 bg-[#2D6A62] hover:bg-[#21524b] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
-                         <CheckCircle className="w-5 h-5" /> Mark Complete
-                      </button>
+                      <>
+                        <button onClick={async () => {
+                           const token = localStorage.getItem('token');
+                           if (token) {
+                               await fetch(`http://127.0.0.1:8000/api/progress/${selectedNode.data.skill_id}/complete`, {
+                                   method: 'POST',
+                                   headers: { 'Authorization': `Bearer ${token}` }
+                               });
+                           }
+                           markComplete(selectedNode.data.skill_id);
+                           setStrugglingSkills(prev => prev.filter(id => id !== selectedNode.data.skill_id));
+                           setSelectedNode(null);
+                        }} className="w-full py-2.5 bg-[#2D6A62] hover:bg-[#21524b] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 mb-2">
+                           <CheckCircle className="w-5 h-5" /> Mark Complete
+                        </button>
+                        <button onClick={async () => {
+                           const token = localStorage.getItem('token');
+                           if (token) {
+                               await fetch(`http://127.0.0.1:8000/api/progress/${selectedNode.data.skill_id}/struggling`, {
+                                   method: 'POST',
+                                   headers: { 'Authorization': `Bearer ${token}` }
+                               });
+                           }
+                           if (!strugglingSkills.includes(selectedNode.data.skill_id)) {
+                               setStrugglingSkills(prev => [...prev, selectedNode.data.skill_id]);
+                               fetchResourcesForSkill(selectedNode.data.skill_id, true);
+                           }
+                        }} className={`w-full py-2.5 font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 ${strugglingSkills.includes(selectedNode.data.skill_id) ? 'bg-amber-500 text-white' : 'bg-white border border-amber-500 text-amber-600 hover:bg-amber-50'}`}>
+                           <AlertCircle className="w-5 h-5" /> {strugglingSkills.includes(selectedNode.data.skill_id) ? "Struggling (Adapting...)" : "I'm Struggling"}
+                        </button>
+                      </>
                    )}
                 </div>
 
@@ -835,3 +915,5 @@ export default function InteractiveMap() {
     </div>
   );
 }
+
+

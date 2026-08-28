@@ -38,13 +38,13 @@ class YouTubeDiscoveryOrchestrator:
             "final_recommendations": 0
         }
 
-    async def discover(self, skill_id: int, learner_level: str, goal: str, constraints: Dict[str, Any]) -> Dict[str, Any]:
+    async def discover(self, skill_id: int, learner_level: str, goal: str, constraints: Dict[str, Any], is_struggling: bool = False) -> Dict[str, Any]:
         skill = self.db.query(Skill).filter(Skill.id == skill_id).first()
         if not skill:
             raise ValueError(f"Skill ID {skill_id} not found")
             
         # 1. Check Cache
-        is_hit, cached_resources = self.cache.check_cache(skill_id)
+        is_hit, cached_resources = self.cache.check_cache(skill_id, is_struggling)
         if is_hit:
             self.metrics["cache_hits"] += 1
             self.metrics["final_recommendations"] = len(cached_resources)
@@ -64,7 +64,7 @@ class YouTubeDiscoveryOrchestrator:
             except:
                 pass
                 
-        queries = self.search_intent.generate_queries(skill.name, aliases, learner_level, goal, constraints)
+        queries = self.search_intent.generate_queries(skill.name, aliases, learner_level, goal, constraints, is_struggling)
         self.metrics["groq_calls"] = self.search_intent.calls_made
         
         # 3. Search YouTube & Deduplicate across queries
@@ -132,7 +132,7 @@ class YouTubeDiscoveryOrchestrator:
                 
             self.metrics["videos_verified"] += 1
             
-            new_res = self._insert_resource(v, skill, learner_level, lang)
+            new_res = self._insert_resource(v, skill, learner_level, lang, is_struggling)
             final_resources.append(new_res)
             lang_counts[lang] = lang_counts.get(lang, 0) + 1
             
@@ -162,7 +162,7 @@ class YouTubeDiscoveryOrchestrator:
                     results[url] = False
         return results
         
-    def _insert_resource(self, ranked_vid: Dict[str, Any], skill: Skill, learner_level: str, lang: str = "en") -> Resource:
+    def _insert_resource(self, ranked_vid: Dict[str, Any], skill: Skill, learner_level: str, lang: str = "en", is_struggling: bool = False) -> Resource:
         raw = ranked_vid["raw_api_data"]
         snippet = raw.get("snippet", {})
         stats = raw.get("statistics", {})
@@ -171,13 +171,18 @@ class YouTubeDiscoveryOrchestrator:
         vid_id = ranked_vid["video_id"]
         url = f"https://www.youtube.com/watch?v={vid_id}"
         
+        mapping_source = "YOUTUBE_DISCOVERY_STRUGGLING" if is_struggling else "YOUTUBE_DISCOVERY"
+        
         # Check if already exists in DB
         existing = self.db.query(Resource).filter(Resource.canonical_url == url).first()
         if existing:
             # Map skill if not mapped
             rs = self.db.query(ResourceSkill).filter_by(resource_id=existing.id, skill_id=skill.id).first()
             if not rs:
-                rs = ResourceSkill(resource_id=existing.id, skill_id=skill.id, mapping_source="SEMANTIC", confidence=ranked_vid["semantic_score"])
+                rs = ResourceSkill(resource_id=existing.id, skill_id=skill.id, mapping_source=mapping_source, confidence=ranked_vid["semantic_score"])
+                self.db.add(rs)
+            elif rs.mapping_source != mapping_source and mapping_source == "YOUTUBE_DISCOVERY_STRUGGLING":
+                rs.mapping_source = mapping_source
                 self.db.add(rs)
             return existing
         
@@ -227,7 +232,7 @@ class YouTubeDiscoveryOrchestrator:
         self.db.flush() # Get ID
         
         # Map skill
-        rs = ResourceSkill(resource_id=r.id, skill_id=skill.id, mapping_source="SEMANTIC", confidence=ranked_vid["semantic_score"])
+        rs = ResourceSkill(resource_id=r.id, skill_id=skill.id, mapping_source=mapping_source, confidence=ranked_vid["semantic_score"])
         self.db.add(rs)
         
         return r
@@ -239,6 +244,15 @@ class YouTubeDiscoveryOrchestrator:
                 meta = json.loads(r.metadata_json)
             except:
                 pass
+        # Calculate match percentage
+        match_percentage = 85 # fallback
+        ranking = meta.get("ranking", {})
+        final_score = ranking.get("final_score")
+        if final_score is not None:
+            match_percentage = int(min(max(final_score * 100, 0), 100))
+        elif meta.get("why_recommended", {}).get("semantic_score"):
+            match_percentage = int(min(max(meta["why_recommended"]["semantic_score"] * 100, 0), 100))
+            
         return {
             "id": r.id,
             "title": r.title,
@@ -252,6 +266,7 @@ class YouTubeDiscoveryOrchestrator:
             "cost_type": r.cost_type.value if hasattr(r.cost_type, "value") else str(r.cost_type),
             "verified": r.verification_status.value == "VERIFIED" if hasattr(r.verification_status, "value") else str(r.verification_status) == "VERIFIED",
             "cached": from_cache,
+            "match_percentage": match_percentage,
             "why_recommended": meta.get("why_recommended", {})
         }
 

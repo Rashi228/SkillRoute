@@ -30,10 +30,17 @@ async def get_skill_recommendations(req: RecommendationRequest, db: Session = De
     if req.budget.upper() == "FREE":
         raw_practice = [p for p in raw_practice if p.get("cost") in ["FREE", "FREE_AUDIT"]]
     valid_practice = await filter_valid_resources(raw_practice)
+    for p in valid_practice:
+        # Curated practice platforms have high baseline relevance (80%) + difficulty match (20%)
+        diff_match = 1.0 if p.get("difficulty", "").upper() == req.learner_level.upper() else 0.8
+        p["match_percentage"] = int((0.8 * 100) + (0.2 * diff_match * 100))
     
     # 2. Documentation / Reading
     raw_docs = get_documentation(skill_name)
     valid_docs = await filter_valid_resources(raw_docs)
+    for d in valid_docs:
+        diff_match = 1.0 if d.get("difficulty", "").upper() == req.learner_level.upper() else 0.8
+        d["match_percentage"] = int((0.85 * 100) + (0.15 * diff_match * 100))
     
     # 3. Build (Project)
     # Project generation does not include external URLs so no validation needed here
@@ -61,6 +68,18 @@ async def get_skill_recommendations(req: RecommendationRequest, db: Session = De
     ).limit(5).all()
     
     for c in db_courses:
+        # Priority: Skill relevance (50%) > user/profile fit (20%) > budget compatibility (10%) > verification (10%) > quality (10%)
+        rs = db.query(models.ResourceSkill).filter_by(resource_id=c.id, skill_id=skill.id).first()
+        skill_relevance = rs.confidence if rs and rs.confidence else 0.8
+        
+        difficulty_score = 1.0 if c.difficulty and c.difficulty.upper() == req.learner_level.upper() else 0.8
+        budget_score = 1.0 # filtered in DB
+        verification_score = 1.0 # filtered in DB
+        quality_score = min(c.quality_score or 0.8, 1.0)
+        
+        final_score = (skill_relevance * 0.5) + (difficulty_score * 0.2) + (budget_score * 0.1) + (verification_score * 0.1) + (quality_score * 0.1)
+        match_percentage = int(min(max(final_score * 100, 0), 100))
+        
         courses.append({
             "title": c.title,
             "provider": c.provider,
@@ -68,10 +87,11 @@ async def get_skill_recommendations(req: RecommendationRequest, db: Session = De
             "rating": c.rating,
             "review_count": c.review_count,
             "duration_hours": c.duration_hours,
-            "cost_type": c.cost_type.value,
+            "cost_type": c.cost_type.value if hasattr(c.cost_type, "value") else str(c.cost_type),
             "price": c.price_amount,
             "currency": c.currency,
-            "url": c.final_url or c.url
+            "url": c.final_url or c.url,
+            "match_percentage": match_percentage
         })
     
     return {

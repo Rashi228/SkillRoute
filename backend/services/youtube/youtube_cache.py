@@ -12,12 +12,14 @@ class YouTubeCache:
         self.min_cache_results = int(os.environ.get("YOUTUBE_MIN_CACHE_RESULTS", "5"))
         self.cache_ttl_hours = int(os.environ.get("YOUTUBE_CACHE_TTL_HOURS", "168"))
         
-    def check_cache(self, skill_id: int) -> Tuple[bool, List[Resource]]:
+    def check_cache(self, skill_id: int, is_struggling: bool = False) -> Tuple[bool, List[Resource]]:
         """
         Checks if we have enough fresh, verified YouTube resources for the given skill.
         Returns (is_cache_hit, list_of_resources).
         """
         cutoff_date = datetime.now(timezone.utc) - timedelta(hours=self.cache_ttl_hours)
+        
+        target_mapping_source = "YOUTUBE_DISCOVERY_STRUGGLING" if is_struggling else "YOUTUBE_DISCOVERY"
         
         # Query for active, verified YouTube resources mapped to this skill
         cached = self.db.query(Resource).join(ResourceSkill).filter(
@@ -25,6 +27,7 @@ class YouTubeCache:
             Resource.is_active == True,
             Resource.verification_status == 'VERIFIED',
             ResourceSkill.skill_id == skill_id,
+            ResourceSkill.mapping_source == target_mapping_source,
             Resource.updated_at >= cutoff_date # Consider freshness of the cache record itself
         ).all()
         

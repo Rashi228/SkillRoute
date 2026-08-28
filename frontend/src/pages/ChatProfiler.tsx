@@ -20,7 +20,7 @@ export default function ChatProfiler() {
     scrollToBottom();
   }, [messages, loading]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     if (!input.trim() || isComplete) return;
 
@@ -124,7 +124,7 @@ export default function ChatProfiler() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-40">
-          {messages.map((msg, idx) => (
+          {messages.map((msg: any, idx: any) => (
             <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'ai' && (
                 <div className="w-8 h-8 rounded bg-teal-50 flex items-center justify-center flex-shrink-0 border border-teal-100 mt-auto mb-2">
@@ -177,7 +177,7 @@ export default function ChatProfiler() {
             <input 
               type="text" 
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e: any) => setInput(e.target.value)}
               disabled={loading || isComplete}
               placeholder={isComplete ? "Profile complete! Click the button below." : "Ask across all your skills..."}
               className="w-full pl-6 pr-14 py-4 bg-white border border-slate-200 rounded-xl focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 outline-none transition-all disabled:opacity-50 text-sm shadow-sm"
@@ -226,7 +226,7 @@ export default function ChatProfiler() {
   );
 }
 
-const ProfileField = ({ label, value }) => (
+const ProfileField = ({ label, value }: any) => (
   <div className="mb-4">
     <div className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">{label}</div>
     <div className={`text-sm ${value ? 'text-slate-800' : 'text-slate-400 italic'}`}>
@@ -235,7 +235,7 @@ const ProfileField = ({ label, value }) => (
   </div>
 );
 
-function MapIcon(props) {
+function MapIcon(props: any) {
   return (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
@@ -327,3 +327,5 @@ const ThoughtProcess = ({ isRunning = false }: { isRunning: boolean }) => {
     </div>
   );
 };
+
+
