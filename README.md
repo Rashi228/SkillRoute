@@ -202,3 +202,34 @@ cd backend
 python scripts/import_resources.py --source coursera --file data/raw/coursera.csv
 ```
 Use the `--dry-run` flag to validate a dataset without mutating the database.
+
+## 5. Testing & CI/CD Pipeline
+
+To ensure absolute reliability and production-grade stability, SkillRoute implements a robust, automated testing and deployment pipeline.
+
+### Automated Testing Suite
+- **Backend (Pytest):** The FastAPI backend is tested using `pytest` and `pytest-asyncio`. Tests cover everything from basic API health checks to complex, mocked scenarios (e.g., simulating a full YouTube Discovery cache hit/miss without hitting real external quotas). The test database dynamically utilizes an in-memory SQLite `StaticPool` to prevent side-effects between test threads.
+- **Frontend (Vitest):** The React frontend relies on `Vitest`, `@testing-library/react`, and `jsdom` for blazing-fast component rendering tests. It rigorously tests the UI boundaries to ensure the learning map and essential routes never break.
+
+To run tests locally:
+```bash
+# Run backend tests
+cd backend
+pytest tests/
+
+# Run frontend tests
+cd frontend
+npm run test
+```
+
+### GitHub Actions CI/CD
+SkillRoute uses a strict CI/CD Validation Gate triggered on every `push` and `pull_request` to the `master` branch.
+1. **Frontend Job (`test-frontend`):** Spins up a Node.js 20 environment, installs dependencies, and runs the Vitest suite.
+2. **Backend Job (`test-backend`):** Spins up a Python 3.10 environment. It uniquely provisions a **Live PostgreSQL Service Container** inside the GitHub Actions runner. This guarantees the backend tests interact with a true production-equivalent database instead of a mock, ensuring complete schema and ORM compatibility before merging.
+
+*Any pull request that fails the CI/CD pipeline is automatically blocked from being merged or deployed to Vercel/Render.*
+
+## Unique Platform Highlights
+- **Zero-Hallucination Routing:** By relying on a recursive DB Graph CTE rather than raw LLM generation for pathbuilding, we guarantee valid skill trajectories. The LLM is strictly used as an *intent extractor* and *semantic mapper*, not a knowledge engine.
+- **Agentic Workflow:** The AI Coach isn't just a chatbot; it has agency. It translates user text ("I finished Python") into structured JSON commands that directly mutate the database and re-render the frontend.
+- **Intelligent Deduplication:** Live API fetching is expensive. Our orchestration layer deduplicates videos across multiple generated search queries *before* saving to the database, minimizing storage overhead and ensuring clean UI cards.
