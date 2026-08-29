@@ -11,6 +11,6 @@ describe('Landing Page', () => {
         <Landing />
       </BrowserRouter>
     );
-    expect(screen.getByText(/Your Path to Mastery/i)).toBeInTheDocument();
+    expect(screen.getByText(/Your Learning Journey/i)).toBeInTheDocument();
   });
 });
