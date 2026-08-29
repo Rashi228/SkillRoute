@@ -52,7 +52,7 @@ def mock_youtube_client(*args, **kwargs):
 def mock_youtube_search(*args, **kwargs):
     search = MagicMock()
     search.calls_made = 1
-    search.generate_queries.return_value = ["RAG python tutorial"]
+    search.generate_queries.return_value = [{"query": "RAG python tutorial"}]
     return search
     
 def mock_semantic_matcher(*args, **kwargs):
