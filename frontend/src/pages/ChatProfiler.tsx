@@ -3,7 +3,7 @@ import { Send, Bot, User, CheckCircle, Loader2, Compass, BrainCircuit, ChevronDo
 import { useNavigate } from 'react-router-dom';
 import { useChatContext } from '../context/ChatContext';
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+import { API_URL } from '../config';
 
 export default function ChatProfiler() {
   const { messages, setMessages, profile, setProfile, isComplete, setIsComplete, chats, currentChatId, setCurrentChatId, createNewChat } = useChatContext();

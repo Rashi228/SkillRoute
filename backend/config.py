@@ -3,8 +3,8 @@ from typing import Optional
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "SkillRoute"
-    DATABASE_URL: str = "postgresql://aln_user:aln_password@localhost:5432/aln_db"
-    SECRET_KEY: str = "supersecretkey_change_in_production"
+    DATABASE_URL: str
+    SECRET_KEY: str
     GROQ_API_KEY: str = ""
     YOUTUBE_API_KEY: Optional[str] = None
     
