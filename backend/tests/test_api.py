@@ -15,8 +15,7 @@ def test_health_check():
     assert response.status_code == 200
     assert response.json() == {"status": "healthy"}
 
-def test_generate_path_auth_required():
-    response = client.post("/api/path/generate", json={"target_goal": "Python"})
-    # It should return 401 because we didn't provide a valid JWT token
-    assert response.status_code == 401
-    assert "detail" in response.json()
+def test_generate_path_anonymous():
+    response = client.post("/api/path/generate", json={"target_skill_name": "Python"})
+    # It should return 200 because anonymous path generation is allowed
+    assert response.status_code == 200

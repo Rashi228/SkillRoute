@@ -77,7 +77,7 @@ class AsyncMockValidator:
 @patch('services.youtube.youtube_orchestrator.YouTubeSearchIntent', new=mock_youtube_search)
 @patch('services.youtube.youtube_orchestrator.SemanticMatcher', new=mock_semantic_matcher)
 @patch.object(YouTubeDiscoveryOrchestrator, '_validate_urls', new_callable=AsyncMock, return_value={"https://www.youtube.com/watch?v=vid123": True})
-async def test_discovery_pipeline_cache_miss(db):
+async def test_discovery_pipeline_cache_miss(mock_validate, db):
     """
     Test a full discovery pipeline on cache miss.
     """
@@ -98,7 +98,7 @@ async def test_discovery_pipeline_cache_miss(db):
 @patch('services.youtube.youtube_orchestrator.YouTubeSearchIntent', new=mock_youtube_search)
 @patch('services.youtube.youtube_orchestrator.SemanticMatcher', new=mock_semantic_matcher)
 @patch.object(YouTubeDiscoveryOrchestrator, '_validate_urls', new_callable=AsyncMock, return_value={})
-async def test_discovery_pipeline_cache_hit(db):
+async def test_discovery_pipeline_cache_hit(mock_validate, db):
     """
     Test cache hit bypasses Groq and YouTube API.
     """
