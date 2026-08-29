@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { useChatContext } from '../context/ChatContext';
 
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
 // --- CUSTOM NODES ---
 
 const ResourceNode = ({ data, selected }: { data: any, selected: any }) => {
@@ -213,7 +215,7 @@ export default function InteractiveMap() {
         completed_skill_ids: completedSkills,
         learner_level: "INTERMEDIATE"
       };
-      const res = await fetch('http://127.0.0.1:8000/api/path/generate', {
+      const res = await fetch(`${API_URL}/api/path/generate`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -299,12 +301,12 @@ export default function InteractiveMap() {
         };
 
         const [ytRes, recRes] = await Promise.all([
-          fetch('http://127.0.0.1:8000/api/resources/youtube/discover', {
+          fetch(`${API_URL}/api/resources/youtube/discover`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
           }),
-          fetch('http://127.0.0.1:8000/api/resources/recommendations', {
+          fetch(`${API_URL}/api/resources/recommendations`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(recPayload)
@@ -332,7 +334,7 @@ export default function InteractiveMap() {
                   ...payload,
                   constraints: { ...payload.constraints, search_intent: fetchedRecs.project.tutorial_search_intent }
                };
-               fetch('http://127.0.0.1:8000/api/resources/youtube/discover', {
+               fetch(`${API_URL}/api/resources/youtube/discover`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(projectPayload)
@@ -366,7 +368,7 @@ export default function InteractiveMap() {
     setLoadingExplanation(true);
     setNodeExplanation(null);
     
-    fetch('http://127.0.0.1:8000/api/path/explain_node', {
+    fetch(`${API_URL}/api/path/explain_node`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -408,7 +410,7 @@ export default function InteractiveMap() {
         time_commitment: profile?.time_commitment || "10 hours per week"
       };
       
-      const res = await fetch('http://127.0.0.1:8000/api/chat/coach', {
+      const res = await fetch(`${API_URL}/api/chat/coach`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -781,7 +783,7 @@ export default function InteractiveMap() {
                       <button onClick={async () => {
                          const token = localStorage.getItem('token');
                          if (token) {
-                             await fetch(`http://127.0.0.1:8000/api/progress/${selectedNode.data.skill_id}/incomplete`, {
+                             await fetch(`${API_URL}/api/progress/${selectedNode.data.skill_id}/incomplete`, {
                                  method: 'POST',
                                  headers: { 'Authorization': `Bearer ${token}` }
                              });
@@ -796,7 +798,7 @@ export default function InteractiveMap() {
                         <button onClick={async () => {
                            const token = localStorage.getItem('token');
                            if (token) {
-                               await fetch(`http://127.0.0.1:8000/api/progress/${selectedNode.data.skill_id}/complete`, {
+                               await fetch(`${API_URL}/api/progress/${selectedNode.data.skill_id}/complete`, {
                                    method: 'POST',
                                    headers: { 'Authorization': `Bearer ${token}` }
                                });
@@ -810,7 +812,7 @@ export default function InteractiveMap() {
                         <button onClick={async () => {
                            const token = localStorage.getItem('token');
                            if (token) {
-                               await fetch(`http://127.0.0.1:8000/api/progress/${selectedNode.data.skill_id}/struggling`, {
+                               await fetch(`${API_URL}/api/progress/${selectedNode.data.skill_id}/struggling`, {
                                    method: 'POST',
                                    headers: { 'Authorization': `Bearer ${token}` }
                                });

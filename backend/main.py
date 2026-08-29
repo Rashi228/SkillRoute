@@ -12,11 +12,18 @@ from api import youtube, recommendations
 # Create DB tables
 models.Base.metadata.create_all(bind=engine)
 
+import os
+
 app = FastAPI(title="Adaptive Learning Navigator API")
+
+# Setup CORS to read from env var, defaulting to local Vite port if not set
+# In production on Render, set FRONTEND_URL to the Vercel app domain.
+frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+allow_origins = [frontend_url] if frontend_url != "*" else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"], # Vite default port
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

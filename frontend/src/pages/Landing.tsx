@@ -257,6 +257,8 @@ export default function Landing() {
 
 import { useState } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
 function LandingLoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -269,7 +271,7 @@ function LandingLoginForm() {
       formData.append('username', email);
       formData.append('password', password);
 
-      const response = await fetch('http://127.0.0.1:8000/api/login', {
+      const response = await fetch(`${API_URL}/api/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',

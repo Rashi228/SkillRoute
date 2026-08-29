@@ -3,6 +3,8 @@ import { Send, Bot, User, CheckCircle, Loader2, Compass, BrainCircuit, ChevronDo
 import { useNavigate } from 'react-router-dom';
 import { useChatContext } from '../context/ChatContext';
 
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
 export default function ChatProfiler() {
   const { messages, setMessages, profile, setProfile, isComplete, setIsComplete, chats, currentChatId, setCurrentChatId, createNewChat } = useChatContext();
   const [input, setInput] = useState('');
@@ -34,7 +36,7 @@ export default function ChatProfiler() {
     await new Promise(resolve => setTimeout(resolve, 12000));
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/chat/profiler', {
+      const res = await fetch(`${API_URL}/api/chat/profiler`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

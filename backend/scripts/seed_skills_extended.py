@@ -1,6 +1,6 @@
 import sys
 import os
-sys.path.append('d:/HCL_Tech/backend')
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import SessionLocal
 from models import Skill
 import json
