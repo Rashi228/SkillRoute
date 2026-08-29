@@ -6,13 +6,14 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from database import Base
 from models import Skill, Resource, ResourceSkill
 from services.youtube.youtube_orchestrator import YouTubeDiscoveryOrchestrator
 
 # Setup in-memory SQLite DB for fast testing
-engine = create_engine("sqlite:///:memory:")
+engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @pytest.fixture
@@ -52,7 +53,7 @@ def mock_youtube_client(*args, **kwargs):
 def mock_youtube_search(*args, **kwargs):
     search = MagicMock()
     search.calls_made = 1
-    search.generate_queries.return_value = [{"query": "RAG python tutorial"}]
+    search.generate_queries.return_value = [{"query": "RAG python tutorial", "language": "en"}]
     return search
     
 def mock_semantic_matcher(*args, **kwargs):
