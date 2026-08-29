@@ -35,7 +35,6 @@ app.include_router(progress.router)
 app.include_router(youtube.router)
 app.include_router(recommendations.router)
 
-
 @app.get("/api/health")
 def health_check():
     return {"status": "healthy"}
