@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models
 import config
-settings = config.get_settings()
+settings = config.settings
 
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
