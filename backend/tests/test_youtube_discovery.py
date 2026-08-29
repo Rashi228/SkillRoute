@@ -117,7 +117,7 @@ async def test_discovery_pipeline_cache_hit(mock_validate, db):
         )
         db.add(r)
         db.flush()
-        db.add(ResourceSkill(resource_id=r.id, skill_id=1, mapping_source="EXPLICIT"))
+        db.add(ResourceSkill(resource_id=r.id, skill_id=1, mapping_source="YOUTUBE_DISCOVERY"))
     db.commit()
     
     os.environ["YOUTUBE_MIN_CACHE_RESULTS"] = "5"
