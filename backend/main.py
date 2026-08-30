@@ -17,9 +17,9 @@ import os
 app = FastAPI(title="Adaptive Learning Navigator API")
 
 # Setup CORS to read from env var, defaulting to local Vite port if not set
-# In production on Render, set FRONTEND_URL to the Vercel app domain.
-frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
-allow_origins = [frontend_url] if frontend_url != "*" else ["*"]
+# In production on Render, set FRONTEND_URL to the Vercel app domain, or comma-separated domains.
+frontend_urls_str = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+allow_origins = [url.strip() for url in frontend_urls_str.split(",")] if frontend_urls_str != "*" else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
