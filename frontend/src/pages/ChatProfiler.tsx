@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, CheckCircle, Loader2, Compass, BrainCircuit, ChevronDown } from 'lucide-react';
+import { Send, Bot, CheckCircle, Loader2, Compass, BrainCircuit, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useChatContext } from '../context/ChatContext';
 
@@ -36,7 +36,7 @@ export default function ChatProfiler() {
     await new Promise(resolve => setTimeout(resolve, 12000));
 
     try {
-      const res = await fetch(`${API_URL}/api/chat/profiler`, {
+      const res = await fetch(`${API_URL}/api/chat/route`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -46,10 +46,30 @@ export default function ChatProfiler() {
       });
 
       const data = await res.json();
+      const routedType = data.type || 'GOAL_DIRECTED';
       
-      setProfile(data.profile);
+      if (routedType === 'BROAD_EXPLORATION') {
+        const topics = data.topics || [];
+        const topicText = topics.length > 0
+          ? `Here are the related topics I found for ${data.subject}: ${topics.join(", ")}.`
+          : `I couldn't find related topics for ${data.subject} in the current skill map yet.`;
+        setMessages(prev => [...prev, { role: 'ai', content: topicText }]);
+        return;
+      }
       
-      if (data.is_complete) {
+      if (routedType === 'SPECIFIC_LOOKUP') {
+        setMessages(prev => [...prev, {
+          role: 'ai',
+          content: data.answer || `I couldn't find a grounded answer for ${data.subject} in the current skill map yet.`
+        }]);
+        return;
+      }
+      
+      const profilerData = data.data || data;
+      
+      setProfile(profilerData.profile);
+      
+      if (profilerData.is_complete) {
         setIsComplete(true);
         setMessages(prev => [...prev, { 
           role: 'ai', 
@@ -58,7 +78,7 @@ export default function ChatProfiler() {
       } else {
         setMessages(prev => [...prev, { 
           role: 'ai', 
-          content: data.follow_up_question || "Could you tell me more about your current skills and available time?" 
+          content: profilerData.follow_up_question || "Could you tell me more about your current skills and available time?" 
         }]);
       }
     } catch (err) {
@@ -237,16 +257,6 @@ const ProfileField = ({ label, value }: any) => (
   </div>
 );
 
-function MapIcon(props: any) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
-      <line x1="9" x2="9" y1="3" y2="18"></line>
-      <line x1="15" x2="15" y1="6" y2="21"></line>
-    </svg>
-  );
-}
-
 const ThoughtProcess = ({ isRunning = false }: { isRunning: boolean }) => {
   const [expanded, setExpanded] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -329,5 +339,3 @@ const ThoughtProcess = ({ isRunning = false }: { isRunning: boolean }) => {
     </div>
   );
 };
-
-
