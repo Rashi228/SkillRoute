@@ -71,24 +71,33 @@ class YouTubeDiscoveryOrchestrator:
         discovered_urls = self.cache.get_existing_urls() # Used for deduplication
         raw_videos = []
         
-        for q_obj in queries:
-            q_str = q_obj["query"]
-            q_lang = q_obj["language"]
-            vids = self.client.search_videos(q_str)
-            self.metrics["youtube_api_calls"] += 1 
-            self.metrics["videos_received"] += len(vids)
-            
-            for v in vids:
-                vid_id = v["id"] if isinstance(v["id"], str) else v["id"]["videoId"]
-                url = f"https://www.youtube.com/watch?v={vid_id}"
+        try:
+            for q_obj in queries:
+                q_str = q_obj["query"]
+                q_lang = q_obj["language"]
+                vids = self.client.search_videos(q_str)
+                self.metrics["youtube_api_calls"] += 1 
+                self.metrics["videos_received"] += len(vids)
                 
-                # Check for duplicate in THIS BATCH
-                if url not in [f"https://www.youtube.com/watch?v={rv['id'] if isinstance(rv['id'], str) else rv['id']['videoId']}" for rv in raw_videos]:
-                    # Attach language metadata
-                    v["_target_language"] = q_lang
-                    raw_videos.append(v)
-                else:
-                    self.metrics["videos_deduplicated"] += 1
+                for v in vids:
+                    vid_id = v["id"] if isinstance(v["id"], str) else v["id"]["videoId"]
+                    url = f"https://www.youtube.com/watch?v={vid_id}"
+                    
+                    # Check for duplicate in THIS BATCH
+                    if url not in [f"https://www.youtube.com/watch?v={rv['id'] if isinstance(rv['id'], str) else rv['id']['videoId']}" for rv in raw_videos]:
+                        # Attach language metadata
+                        v["_target_language"] = q_lang
+                        raw_videos.append(v)
+                    else:
+                        self.metrics["videos_deduplicated"] += 1
+        except Exception as e:
+            print(f"YouTube API crashed: {e}")
+            return {
+                "status": "API_FAILED",
+                "message": "YouTube discovery is temporarily unavailable.",
+                "resources": [self._format_resource(r, True) for r in cached_resources],
+                "metrics": self.metrics
+            }
                     
         self.metrics["youtube_api_calls"] = self.client.calls_made
         

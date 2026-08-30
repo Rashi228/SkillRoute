@@ -194,6 +194,7 @@ export default function InteractiveMap() {
   // Real-time discovery state
   const [loadingResources, setLoadingResources] = useState(false);
   const [sidebarResources, setSidebarResources] = useState<any[]>([]);
+  const [youtubeStatus, setYoutubeStatus] = useState<string | null>(null);
   const [strugglingSkills, setStrugglingSkills] = useState<number[]>([]);
 
   // Chat Overlay and Progress State
@@ -283,6 +284,7 @@ export default function InteractiveMap() {
   const fetchResourcesForSkill = async (skillId: number, isStruggling: boolean) => {
     setLoadingResources(true);
     setSidebarResources([]);
+    setYoutubeStatus(null);
     setRecommendations(null);
     try {
         const payload = {
@@ -322,6 +324,7 @@ export default function InteractiveMap() {
             if (latestSkillIdRef.current !== skillId) return;
             const data = await ytRes.json();
             fetchedYt = data.resources || [];
+            setYoutubeStatus(data.status || null);
         }
         
                 if (recRes.ok) {
@@ -637,6 +640,10 @@ export default function InteractiveMap() {
                   <div className="flex flex-col items-center justify-center p-4 space-y-3">
                     <Loader2 className="w-6 h-6 text-teal-500 animate-spin" />
                     <div className="text-xs text-slate-500 font-medium animate-pulse">Loading verified recommendations...</div>
+                  </div>
+                ) : youtubeStatus === 'API_FAILED' && sidebarResources.length === 0 ? (
+                  <div className="p-4 bg-slate-50 border border-slate-200 border-dashed rounded-xl text-center mb-6">
+                    <div className="text-xs text-slate-500">Video recommendations are temporarily unavailable.</div>
                   </div>
                 ) : sidebarResources.filter(r => !r._is_project_tutorial).length > 0 ? (
                   <div className="space-y-3 mb-6">

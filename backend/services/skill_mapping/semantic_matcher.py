@@ -4,14 +4,29 @@ from sentence_transformers import SentenceTransformer, util
 from services.skill_mapping.embedding_store import SkillEmbeddingStore
 from models import Skill
 import torch
+import threading
+
+_MODEL_CACHE = {}
+_MODEL_LOCK = threading.Lock()
+_MODEL_INIT_COUNT = 0
+
+def get_sentence_transformer(model_name: str) -> SentenceTransformer:
+    global _MODEL_CACHE, _MODEL_INIT_COUNT
+    if model_name not in _MODEL_CACHE:
+        with _MODEL_LOCK:
+            if model_name not in _MODEL_CACHE:
+                print(f"[SINGLETON] Lazy loading SentenceTransformer model: {model_name}", flush=True)
+                _MODEL_CACHE[model_name] = SentenceTransformer(model_name)
+                _MODEL_INIT_COUNT += 1
+    return _MODEL_CACHE[model_name]
 
 class SemanticMatcher:
     def __init__(self, embedding_store: SkillEmbeddingStore, model_name: str = "all-MiniLM-L6-v2"):
         self.embedding_store = embedding_store
         self.model_name = os.environ.get("EMBEDDING_MODEL", model_name)
         
-        # Load the local model
-        self.model = SentenceTransformer(self.model_name)
+        # Load the local model lazily and safely
+        self.model = get_sentence_transformer(self.model_name)
         
         # Load Skill Embeddings into memory
         self.skill_embeddings_data = self.embedding_store.get_all_embeddings()

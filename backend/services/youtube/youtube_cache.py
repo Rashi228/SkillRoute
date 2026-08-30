@@ -9,7 +9,7 @@ from models import Resource, ResourceSkill
 class YouTubeCache:
     def __init__(self, db: Session):
         self.db = db
-        self.min_cache_results = int(os.environ.get("YOUTUBE_MIN_CACHE_RESULTS", "5"))
+        self.min_cache_results = int(os.environ.get("YOUTUBE_MIN_CACHE_RESULTS", "2"))
         self.cache_ttl_hours = int(os.environ.get("YOUTUBE_CACHE_TTL_HOURS", "168"))
         
     def check_cache(self, skill_id: int, is_struggling: bool = False) -> Tuple[bool, List[Resource]]:

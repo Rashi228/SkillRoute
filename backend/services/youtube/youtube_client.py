@@ -41,11 +41,10 @@ class YouTubeClient:
             
         except HttpError as e:
             print(f"YouTube API Error: {e}")
-            return []
+            raise RuntimeError(f"YouTube API Error: {e}")
         except Exception as e:
             print(f"Unexpected error in YouTube Client: {e}")
-            return []
-            
+            raise RuntimeError(f"Unexpected error in YouTube Client: {e}")
     def _enrich_video_metadata(self, search_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Fetches statistics and content details for discovered videos.
@@ -66,5 +65,4 @@ class YouTubeClient:
             return response.get("items", [])
         except HttpError as e:
             print(f"YouTube API Enrichment Error: {e}")
-            # Fallback to search_items if enrichment fails
-            return search_items
+            raise RuntimeError(f"YouTube API Enrichment Error: {e}")

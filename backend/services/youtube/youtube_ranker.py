@@ -21,15 +21,17 @@ class YouTubeRanker:
         # Extract text for semantic embedding
         texts = []
         for v in videos:
+            if not isinstance(v, dict):
+                texts.append("")
+                continue
             snippet = v.get("snippet", {})
+            if not isinstance(snippet, dict):
+                snippet = {}
             # Emphasize title more
             title = snippet.get("title", "")
             desc = snippet.get("description", "")
             texts.append(f"{title}. {title}. {desc}")
             
-        embeddings = self.semantic_matcher.embed_texts(texts)
-        
-        # We need the embedding for the skill itself
         import json
         aliases = []
         if target_skill.aliases:
@@ -37,14 +39,23 @@ class YouTubeRanker:
                 aliases = json.loads(target_skill.aliases)
             except:
                 pass
-        skill_text = f"{target_skill.name}. {target_skill.description}. " + " ".join(aliases)
-        skill_emb = self.semantic_matcher.embed_texts([skill_text])[0]
-        
-        # Compute cosine similarities manually against the specific skill
-        import torch
-        skill_tensor = torch.tensor(skill_emb).unsqueeze(0)
-        video_tensors = torch.tensor(embeddings)
-        similarities = torch.nn.functional.cosine_similarity(skill_tensor, video_tensors).tolist()
+                
+        # Attempt semantic ranking
+        similarities = None
+        use_fallback = False
+        try:
+            embeddings = self.semantic_matcher.embed_texts(texts)
+            skill_text = f"{target_skill.name}. {target_skill.description}. " + " ".join(aliases)
+            skill_emb = self.semantic_matcher.embed_texts([skill_text])[0]
+            
+            import torch
+            # Safe detach/clone for tensors as per warnings
+            skill_tensor = torch.tensor(skill_emb).clone().detach().unsqueeze(0)
+            video_tensors = torch.tensor(embeddings).clone().detach()
+            similarities = torch.nn.functional.cosine_similarity(skill_tensor, video_tensors).tolist()
+        except Exception as e:
+            print(f"Semantic ranking failed: {e}. Falling back to deterministic keyword scoring.")
+            use_fallback = True
         
         ranked_videos = []
         
@@ -54,18 +65,37 @@ class YouTubeRanker:
         now = datetime.now(timezone.utc)
         
         for i, v in enumerate(videos):
-            semantic_score = similarities[i]
+            if not use_fallback and similarities:
+                semantic_score = similarities[i]
+            else:
+                # Deterministic keyword fallback
+                text_to_search = texts[i].lower()
+                target_terms = [target_skill.name.lower()] + [a.lower() for a in aliases]
+                matches = sum(1 for term in target_terms if term in text_to_search)
+                # Maximize at 1.0, minimum base score
+                semantic_score = min(0.3 + (matches * 0.2), 1.0)
+                if matches == 0:
+                    semantic_score = 0.0 # completely irrelevant
             
             # Semantic filter (reject completely irrelevant)
-            if semantic_score < self.semantic_matcher.threshold:
+            if semantic_score < self.semantic_matcher.threshold and not use_fallback:
+                continue
+            elif use_fallback and semantic_score < 0.3:
                 continue
                 
+            if not isinstance(v, dict):
+                continue
             stats = v.get("statistics", {})
+            if not isinstance(stats, dict):
+                stats = {}
             views = int(stats.get("viewCount", "0") or 0)
             quality_score = min(views / (max_views if max_views > 0 else 1), 1.0)
             
             # Freshness score (decay over 5 years)
-            published_at_str = v.get("snippet", {}).get("publishedAt")
+            snippet = v.get("snippet", {})
+            if not isinstance(snippet, dict):
+                snippet = {}
+            published_at_str = snippet.get("publishedAt")
             freshness_score = 0.5 # default
             if published_at_str:
                 try:
@@ -79,7 +109,7 @@ class YouTubeRanker:
             # Basic level adjustment (heuristic)
             # If beginner, favor views and "tutorial/beginner" keywords.
             # If advanced, favor high semantic match and ignore views penalty.
-            title_lower = v.get("snippet", {}).get("title", "").lower()
+            title_lower = snippet.get("title", "").lower()
             if learner_level.upper() == "BEGINNER":
                 if "beginner" in title_lower or "basics" in title_lower:
                     semantic_score = min(semantic_score + 0.1, 1.0)
