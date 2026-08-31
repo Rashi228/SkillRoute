@@ -16,3 +16,9 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
 }
+
+@layer components {
+  .profile-input {
+    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none transition-all placeholder:text-slate-300 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10;
+  }
+}

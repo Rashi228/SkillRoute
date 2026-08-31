@@ -9,9 +9,10 @@ import {
   Target, Map as MapIcon, Loader2, Bot, Send, 
   ChevronDown, MessageSquare, CheckCircle, Lock,
   PlaySquare, BookOpen, Wrench, X, Compass, Activity, 
-  ArrowRight, AlertCircle
+  ArrowRight, AlertCircle, LayoutDashboard, Clock, Layers, TrendingUp, UserRound
 } from 'lucide-react';
 import { useChatContext } from '../context/ChatContext';
+import RouteNav from '../components/RouteNav';
 
 import { API_URL } from '../config';
 
@@ -95,6 +96,11 @@ const ResourceNode = ({ data, selected }: { data: any, selected: any }) => {
       <div className={`font-bold text-sm mb-3 ${data.status === 'locked' ? 'text-slate-500' : 'text-slate-900'}`}>
         {data.skill_name}
       </div>
+      {data.route_note && (
+        <div className="mb-3 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          {data.route_note}
+        </div>
+      )}
       
       {/* Resource Indicators */}
       {data.resources && data.status !== 'locked' && (
@@ -160,6 +166,244 @@ const initialEdges = [
   createEdge('n10', 'goal', 'Required'),
 ];
 
+const goalOptions = [
+  {
+    value: 'Production RAG Engineer',
+    label: 'Production RAG Engineer',
+    timeline: '~18 weeks',
+    pace: '8 hrs/wk',
+    skills: {
+      n4: 'Vector Databases (Pinecone)',
+      n5: 'Embeddings & Transformers',
+      n6: 'Vector Search Algorithms',
+      n7: 'RAG Pipeline Architecture',
+      n8: 'Docker & Kubernetes',
+      n9: 'Evaluation Metrics',
+      n10: 'Advanced Agents',
+      n11: 'Prompt Design Patterns',
+      n12: 'Observability & Tracing',
+      n13: 'Portfolio RAG App',
+    },
+  },
+  {
+    value: 'Frontend Engineer',
+    label: 'Frontend Engineer',
+    timeline: '~14 weeks',
+    pace: '6 hrs/wk',
+    skills: {
+      n4: 'React State Management',
+      n5: 'Responsive UI Systems',
+      n6: 'TypeScript Patterns',
+      n7: 'Frontend Architecture',
+      n8: 'Testing & Accessibility',
+      n9: 'Performance Optimization',
+      n10: 'Design System Delivery',
+      n11: 'Component API Design',
+      n12: 'Monitoring Web Vitals',
+      n13: 'Portfolio Frontend App',
+    },
+  },
+  {
+    value: 'Data Analyst',
+    label: 'Data Analyst',
+    timeline: '~12 weeks',
+    pace: '5 hrs/wk',
+    skills: {
+      n4: 'SQL Joins & Aggregations',
+      n5: 'Dashboard Storytelling',
+      n6: 'Exploratory Analysis',
+      n7: 'Business Metrics Design',
+      n8: 'Spreadsheet Automation',
+      n9: 'Statistics for Decisions',
+      n10: 'Executive Reporting',
+      n11: 'Data Cleaning Patterns',
+      n12: 'Data Quality Checks',
+      n13: 'Analytics Portfolio Case Study',
+    },
+  },
+  {
+    value: 'Cloud DevOps Engineer',
+    label: 'Cloud DevOps Engineer',
+    timeline: '~20 weeks',
+    pace: '8 hrs/wk',
+    skills: {
+      n4: 'CI/CD Pipelines',
+      n5: 'Linux & Networking',
+      n6: 'Infrastructure as Code',
+      n7: 'Cloud Architecture',
+      n8: 'Kubernetes Operations',
+      n9: 'Monitoring & Incident Response',
+      n10: 'Security Hardening',
+      n11: 'Release Automation',
+      n12: 'Cost & Reliability Reviews',
+      n13: 'Production Deployment Project',
+    },
+  },
+];
+
+const getGoalOption = (targetGoal: string) => (
+  goalOptions.find(goal => goal.value === targetGoal) || goalOptions[0]
+);
+
+const routeModeDetails = {
+  FAST: {
+    title: 'FAST TRACK',
+    desc: 'Shortest practical sequence. Skips parallel theory branches and keeps only the must-learn chain.',
+    sidebarReason: 'Fast Track keeps the shortest useful chain from your current position to the target. It hides optional branches so you can focus on the next few decisions.',
+    speed: 2.5,
+  },
+  BALANCED: {
+    title: 'BALANCED',
+    desc: 'Recommended path. Keeps core theory, practice, and the most useful specialization branch.',
+    sidebarReason: 'Balanced keeps the main route plus enough context to understand why each skill matters. This is the best default for steady progress.',
+    speed: 3.5,
+  },
+  DEEP: {
+    title: 'DEEP DIVE',
+    desc: 'Expanded mastery route. Adds optional branches, validation skills, and portfolio work.',
+    sidebarReason: 'Deep Dive shows the broadest route, including support skills and optional mastery checkpoints. Use it when you want stronger long-term coverage.',
+    speed: 4.5,
+  },
+};
+
+const routeNodeIds = {
+  FAST: ['current', 'n5', 'n6', 'n7', 'n9', 'goal'],
+  BALANCED: ['current', 'n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n9', 'goal'],
+  DEEP: ['current', 'n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n9', 'n10', 'goal', 'n11', 'n12', 'n13'],
+};
+
+const routeLayouts = {
+  FAST: {
+    goal: { x: 420, y: -140 },
+    n9: { x: 420, y: 60 },
+    n7: { x: 420, y: 230 },
+    n6: { x: 420, y: 400 },
+    n5: { x: 420, y: 570 },
+    current: { x: 420, y: 710 },
+  },
+  BALANCED: {
+    goal: { x: 420, y: -140 },
+    n9: { x: 420, y: 70 },
+    n7: { x: 420, y: 250 },
+    n6: { x: 420, y: 430 },
+    n4: { x: 170, y: 610 },
+    n5: { x: 670, y: 610 },
+    current: { x: 660, y: 760 },
+    n3: { x: 420, y: 800 },
+    n1: { x: 170, y: 980 },
+    n2: { x: 670, y: 980 },
+  },
+  DEEP: {
+    goal: { x: 500, y: -160 },
+    n8: { x: 110, y: 60 },
+    n9: { x: 500, y: 60 },
+    n10: { x: 890, y: 60 },
+    n7: { x: 500, y: 250 },
+    n11: { x: 170, y: 260 },
+    n12: { x: 830, y: 260 },
+    n6: { x: 500, y: 440 },
+    n4: { x: 240, y: 640 },
+    n5: { x: 760, y: 640 },
+    n13: { x: 500, y: 790 },
+    current: { x: 760, y: 820 },
+    n3: { x: 500, y: 940 },
+    n1: { x: 240, y: 1120 },
+    n2: { x: 760, y: 1120 },
+  },
+};
+
+const deepDiveNodes = [
+  { id: 'n11', type: 'resource', position: { x: 170, y: 260 }, data: { status: 'locked', skill_name: 'Prompt Design Patterns', resources: [{ type: 'article' }], route_note: 'Optional mastery' } },
+  { id: 'n12', type: 'resource', position: { x: 830, y: 260 }, data: { status: 'locked', skill_name: 'Observability & Tracing', resources: [{ type: 'project' }], route_note: 'Production skill' } },
+  { id: 'n13', type: 'resource', position: { x: 500, y: 790 }, data: { status: 'next', skill_name: 'Portfolio RAG App', resources: [{ type: 'project' }, { type: 'video' }], route_note: 'Proof project' } },
+];
+
+const deepDiveEdges = [
+  createEdge('n6', 'n11', 'Explore'),
+  createEdge('n11', 'n7', 'Improves'),
+  createEdge('n7', 'n12', 'Production'),
+  createEdge('n12', 'goal', 'Supports'),
+  createEdge('n3', 'n13', 'Build'),
+  createEdge('n13', 'n6', 'Applies', true),
+];
+
+const createSequentialEdges = (visibleNodes: any[], mode: string) => {
+  const ordered = visibleNodes
+    .filter(node => node.id !== 'current')
+    .sort((a, b) => b.position.y - a.position.y);
+
+  return ordered.slice(0, -1).map((node, index) => {
+    const next = ordered[index + 1];
+    return createEdge(node.id, next.id, mode === 'FAST' ? 'Fast step' : 'Next step', true);
+  });
+};
+
+const getFallbackNodeIds = (mode: string, sourceNodes: any[]) => {
+  const goalIds = sourceNodes.filter(n => n.data?.status === 'goal').map(n => n.id);
+  const currentIds = sourceNodes.filter(n => n.data?.status === 'current').map(n => n.id);
+  const completedIds = sourceNodes.filter(n => n.data?.status === 'completed').map(n => n.id);
+  const activeIds = sourceNodes.filter(n => ['next', 'in-progress'].includes(n.data?.status)).map(n => n.id);
+  const lockedIds = sourceNodes.filter(n => n.data?.status === 'locked').map(n => n.id);
+
+  if (mode === 'FAST') {
+    return [...goalIds, ...currentIds, ...completedIds.slice(-1), ...activeIds.slice(0, 1), ...lockedIds.slice(0, 3)];
+  }
+
+  if (mode === 'BALANCED') {
+    return [...goalIds, ...currentIds, ...completedIds, ...activeIds, ...lockedIds.slice(0, 4)];
+  }
+
+  return sourceNodes.map(n => n.id);
+};
+
+const buildRouteGraph = (mode: string, sourceNodes: any[], sourceEdges: any[], targetGoal = goalOptions[0].value): { nodes: any[]; edges: any[] } => {
+  const goalOption = getGoalOption(targetGoal);
+  const sourceById = new Map<string, any>(sourceNodes.map(node => [node.id, node]));
+  const usesDemoGraph = routeNodeIds.BALANCED.every(id => sourceById.has(id));
+  const baseNodes = mode === 'DEEP' && usesDemoGraph ? [...sourceNodes, ...deepDiveNodes] : sourceNodes;
+  const availableById = new Map<string, any>(baseNodes.map(node => [node.id, node]));
+  const wantedIds = usesDemoGraph ? routeNodeIds[mode] : getFallbackNodeIds(mode, baseNodes);
+  const visibleIdSet = new Set<string>(wantedIds.filter(id => availableById.has(id)));
+  const layout = routeLayouts[mode] || routeLayouts.BALANCED;
+
+  const visibleNodes = Array.from(visibleIdSet).map((id, index) => {
+    const node = availableById.get(id);
+    const explicitPosition = layout[id];
+    const position = explicitPosition || {
+      x: 240 + (index % 3) * 280,
+      y: Math.floor(index / 3) * 180,
+    };
+
+    return {
+      ...node,
+      position,
+      data: {
+        ...node.data,
+        skill_name: node.data?.status === 'goal'
+          ? targetGoal
+          : goalOption.skills[id] || node.data?.skill_name,
+        route_note: node.data?.route_note || (mode === 'FAST' ? 'Core path' : mode === 'BALANCED' ? 'Recommended' : 'Deep detail'),
+      },
+    };
+  });
+
+  const sourceEdgePool = mode === 'DEEP' && usesDemoGraph ? [...sourceEdges, ...deepDiveEdges] : sourceEdges;
+  let visibleEdges = sourceEdgePool
+    .filter(edge => visibleIdSet.has(edge.source) && visibleIdSet.has(edge.target))
+    .map(edge => ({
+      ...edge,
+      animated: mode === 'FAST' || edge.animated,
+      style: mode === 'FAST' || edge.animated ? activeEdgeStyle : defaultEdgeStyle,
+      markerEnd: { type: MarkerType.ArrowClosed, color: mode === 'FAST' || edge.animated ? '#0284c7' : '#94a3b8' },
+    }));
+
+  if (visibleEdges.length === 0 && visibleNodes.length > 1) {
+    visibleEdges = createSequentialEdges(visibleNodes, mode);
+  }
+
+  return { nodes: visibleNodes, edges: visibleEdges };
+};
+
 export default function InteractiveMap() {
   const [nodes, setNodes] = useState<any[]>([]);
   const [edges, setEdges] = useState<any[]>([]);
@@ -167,30 +411,13 @@ export default function InteractiveMap() {
   const [nodeExplanation, setNodeExplanation] = useState<string | null>(null);
   const [loadingExplanation, setLoadingExplanation] = useState(false);
   const [activeRouteMode, setActiveRouteMode] = useState('BALANCED');
+  const [activeView, setActiveView] = useState<'dashboard' | 'map'>('dashboard');
   const [loadingGraph, setLoadingGraph] = useState(true);
   const [graphData, setGraphData] = useState<any>(null);
   const [graphHistory, setGraphHistory] = useState<any[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const historyIndexRef = useRef(-1);
-  
-  // Dynamic metrics derived from graph
-  const completedNodesCount = nodes.filter(n => n.data?.status === 'completed').length;
-  const totalNodesCount = Math.max(1, nodes.length - 2); // exclude goal/current
-  const baseReadiness = Math.round((completedNodesCount / totalNodesCount) * 100) || 15;
-  const knowledgeScore = Math.min(100, baseReadiness + 15);
-  const practicalScore = Math.min(100, baseReadiness + 5);
-  const evaluationScore = Math.max(5, baseReadiness - 15);
-  const deploymentScore = Math.max(5, baseReadiness - 20);
-  
-  const fastStops = Math.max(1, Math.floor(totalNodesCount * 0.5));
-  const balancedStops = totalNodesCount;
-  const deepStops = Math.floor(totalNodesCount * 1.5);
-  const dynamicRoutes = [
-    { id: 'FAST', title: 'FAST TRACK', time: `${Math.round(fastStops * 2.5)} hrs`, stops: fastStops, desc: 'Direct, covers minimum requirements.' },
-    { id: 'BALANCED', title: 'BALANCED', time: `${Math.round(balancedStops * 3.5)} hrs`, stops: balancedStops, desc: 'Recommended. Mix of theory and practice.' },
-    { id: 'DEEP', title: 'DEEP DIVE', time: `${Math.round(deepStops * 4.5)} hrs`, stops: deepStops, desc: 'Comprehensive. Master every concept.' }
-  ];
-  
+
   // Real-time discovery state
   const [loadingResources, setLoadingResources] = useState(false);
   const [sidebarResources, setSidebarResources] = useState<any[]>([]);
@@ -198,12 +425,37 @@ export default function InteractiveMap() {
   const [strugglingSkills, setStrugglingSkills] = useState<number[]>([]);
 
   // Chat Overlay and Progress State
-  const { messages, setMessages, profile, completedSkills, markComplete, markIncomplete } = useChatContext();
+  const { messages, setMessages, profile, setProfile, completedSkills, markComplete, markIncomplete, chats, currentChatId, setCurrentChatId } = useChatContext();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const latestSkillIdRef = useRef<number | null>(null);
   const [chatInput, setChatInput] = useState('');
 
   const nodeTypes = useMemo(() => ({ resource: ResourceNode }), []);
+  const targetGoal = profile?.target_goal || graphData?.target?.name || goalOptions[0].value;
+  const selectedGoal = getGoalOption(targetGoal);
+  const routeGraph = useMemo(() => buildRouteGraph(activeRouteMode, nodes, edges, targetGoal), [activeRouteMode, nodes, edges, targetGoal]);
+  const displayedNodes = routeGraph.nodes;
+  const displayedEdges = routeGraph.edges;
+
+  // Dynamic metrics derived from selected route
+  const completedNodesCount = displayedNodes.filter(n => n.data?.status === 'completed').length;
+  const totalNodesCount = Math.max(1, displayedNodes.filter(n => !['goal', 'current'].includes(n.data?.status)).length);
+  const baseReadiness = Math.round((completedNodesCount / totalNodesCount) * 100) || 15;
+  const knowledgeScore = Math.min(100, baseReadiness + (activeRouteMode === 'DEEP' ? 10 : 15));
+  const practicalScore = Math.min(100, baseReadiness + (activeRouteMode === 'FAST' ? 15 : 5));
+  const evaluationScore = Math.max(5, baseReadiness - (activeRouteMode === 'DEEP' ? 5 : 15));
+  const deploymentScore = Math.max(5, baseReadiness - (activeRouteMode === 'DEEP' ? 10 : 20));
+  const dynamicRoutes = Object.entries(routeModeDetails).map(([id, details]) => {
+    const routeNodes = buildRouteGraph(id, nodes.length ? nodes : initialNodes, edges.length ? edges : initialEdges, targetGoal).nodes;
+    const stops = Math.max(1, routeNodes.filter(n => !['goal', 'current'].includes(n.data?.status)).length);
+    return {
+      id,
+      title: details.title,
+      time: `${Math.round(stops * details.speed)} hrs`,
+      stops,
+      desc: details.desc,
+    };
+  });
 
   const fetchGraph = useCallback(async (isHistoryNavigation = false) => {
     setLoadingGraph(true);
@@ -263,6 +515,12 @@ export default function InteractiveMap() {
   useEffect(() => {
     fetchGraph();
   }, [fetchGraph]);
+
+  useEffect(() => {
+    if (selectedNode && !displayedNodes.some(node => node.id === selectedNode.id)) {
+      setSelectedNode(null);
+    }
+  }, [displayedNodes, selectedNode]);
 
   const navigateHistory = (direction: any) => {
     const newIndex = historyIndex + direction;
@@ -442,6 +700,248 @@ export default function InteractiveMap() {
     setActiveRouteMode(mode);
   };
 
+  const handleGoalChange = (goalValue: string) => {
+    const nextGoal = getGoalOption(goalValue);
+    setSelectedNode(null);
+    setActiveRouteMode('BALANCED');
+    const matchingProfile = chats.find((chat: any) => chat.profile?.target_goal === goalValue);
+    if (matchingProfile) {
+      setCurrentChatId(matchingProfile.id);
+      return;
+    }
+
+    setProfile({
+      ...(profile || {}),
+      target_goal: nextGoal.value,
+      deadline: nextGoal.timeline,
+      time_commitment: nextGoal.pace,
+      current_skills: profile?.current_skills || ['Python'],
+      budget: profile?.budget || 'FREE',
+    });
+  };
+
+  const activeRouteDetails = routeModeDetails[activeRouteMode] || routeModeDetails.BALANCED;
+  const currentNode = displayedNodes.find(n => n.data?.status === 'current');
+  const nextNode = displayedNodes.find(n => n.data?.status === 'next') || displayedNodes.find(n => n.data?.status === 'in-progress') || displayedNodes[1] || displayedNodes[0];
+  const dashboardProfiles = (chats || []).map((chat: any) => ({
+    id: chat.id,
+    label: chat.profile?.target_goal || chat.title || 'Untitled Profile',
+    skills: chat.profile?.current_skills || [],
+    completedCount: chat.completedSkills?.length || 0,
+  }));
+  const readinessStats = [
+    { label: 'Knowledge', val: knowledgeScore, color: 'bg-emerald-500', stroke: '#10b981' },
+    { label: 'Practical', val: practicalScore, color: 'bg-blue-500', stroke: '#3b82f6' },
+    { label: 'Evaluation', val: evaluationScore, color: 'bg-amber-500', stroke: '#f59e0b' },
+    { label: 'Deployment', val: deploymentScore, color: 'bg-red-500', stroke: '#ef4444' }
+  ];
+  const readinessTotal = readinessStats.reduce((sum, stat) => sum + stat.val, 0) || 1;
+  const pieSegments = readinessStats.reduce((segments, stat) => {
+    const previousOffset = segments.reduce((sum, segment) => sum + segment.percent, 0);
+    const percent = (stat.val / readinessTotal) * 100;
+    return [...segments, { ...stat, percent, offset: previousOffset }];
+  }, [] as Array<typeof readinessStats[number] & { percent: number; offset: number }>);
+  const completedHours = completedNodesCount * 3.5;
+  const remainingStops = Math.max(0, totalNodesCount - completedNodesCount);
+
+  const renderDashboardContent = (isStandalone = false) => (
+    <div className={`${isStandalone ? 'h-full overflow-y-auto px-8 py-7' : 'flex flex-col h-full overflow-y-auto'}`}>
+      {isStandalone && (
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-[11px] font-bold tracking-widest text-teal-700 uppercase mb-2">Learning Dashboard</div>
+            <h2 className="text-3xl font-black text-slate-950 tracking-tight">Your progress workspace</h2>
+            <p className="mt-2 text-sm text-slate-600">Readiness, context, and the next action for {targetGoal}.</p>
+          </div>
+          <button
+            onClick={() => setActiveView('map')}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition-all hover:border-teal-300 hover:text-teal-700 hover:shadow-md"
+          >
+            <MapIcon className="h-4 w-4" />
+            Open Map
+          </button>
+        </div>
+      )}
+
+      {isStandalone && (
+        <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-4">
+          {[
+            { label: 'Readiness', value: `${baseReadiness}%`, hint: 'Overall score', icon: TrendingUp, tone: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+            { label: 'Completed', value: `${completedHours}h`, hint: 'Logged effort', icon: Clock, tone: 'text-blue-600 bg-blue-50 border-blue-100' },
+            { label: 'Remaining', value: remainingStops, hint: 'Learning stops', icon: Layers, tone: 'text-amber-600 bg-amber-50 border-amber-100' },
+            { label: 'Route', value: activeRouteDetails.title, hint: `${totalNodesCount} stops`, icon: Compass, tone: 'text-teal-600 bg-teal-50 border-teal-100' },
+          ].map(({ label, value, hint, icon: Icon, tone }) => (
+            <div key={label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</div>
+                <div className={`rounded-lg border p-2 ${tone}`}>
+                  <Icon className="h-4 w-4" />
+                </div>
+              </div>
+              <div className="truncate text-2xl font-black text-slate-950">{value}</div>
+              <div className="mt-1 text-xs font-medium text-slate-500">{hint}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className={isStandalone ? 'grid grid-cols-1 gap-5 xl:grid-cols-[1.05fr_0.95fr]' : ''}>
+        <div className={isStandalone ? 'space-y-5' : ''}>
+          {/* Target Card */}
+          <div className={`${isStandalone ? 'rounded-lg border border-amber-100 bg-gradient-to-b from-amber-50 to-white shadow-sm' : 'border-b border-slate-100 bg-gradient-to-b from-amber-50 to-white'} p-6`}>
+            <div className="text-[10px] font-bold tracking-widest text-amber-600 uppercase mb-2">TARGET DESTINATION</div>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="mt-1"><Target className="w-5 h-5 text-amber-500" /></div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-xl font-bold text-slate-900 leading-tight">{targetGoal}</h2>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="text-slate-500">Timeline: <span className="text-slate-900 font-semibold">{profile?.deadline || selectedGoal.timeline}</span></div>
+              <div className="text-slate-500">Pace: <span className="text-slate-900 font-semibold">{profile?.time_commitment || selectedGoal.pace}</span></div>
+            </div>
+          </div>
+
+          {/* Readiness Card */}
+          <div className={`${isStandalone ? 'rounded-lg border border-slate-200 bg-white shadow-sm' : 'border-b border-slate-100'} p-6`}>
+            <div className="flex justify-between items-end mb-4">
+              <div className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">OVERALL READINESS</div>
+              <div className="text-2xl font-bold text-slate-900">{baseReadiness}%</div>
+            </div>
+
+            <div className={isStandalone ? 'grid gap-6 md:grid-cols-[220px_1fr]' : ''}>
+              {isStandalone && (
+                <div className="flex flex-col items-center justify-center rounded-lg bg-slate-50 p-4">
+                  <div className="relative h-44 w-44">
+                    <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
+                      <circle cx="60" cy="60" r="44" fill="none" stroke="#e2e8f0" strokeWidth="16" />
+                      {pieSegments.map(segment => (
+                        <circle
+                          key={segment.label}
+                          cx="60"
+                          cy="60"
+                          r="44"
+                          fill="none"
+                          stroke={segment.stroke}
+                          strokeWidth="16"
+                          strokeLinecap="round"
+                          pathLength="100"
+                          strokeDasharray={`${segment.percent} ${100 - segment.percent}`}
+                          strokeDashoffset={-segment.offset}
+                        />
+                      ))}
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                      <div className="text-3xl font-black text-slate-950">{baseReadiness}%</div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Ready</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid w-full grid-cols-2 gap-2">
+                    {readinessStats.map(stat => (
+                      <div key={stat.label} className="flex items-center gap-2 text-[10px] font-bold text-slate-600">
+                        <span className={`h-2 w-2 rounded-full ${stat.color}`} />
+                        {stat.label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {readinessStats.map(stat => (
+                  <div key={stat.label}>
+                    <div className="flex justify-between text-[10px] font-bold text-slate-600 uppercase mb-1.5">
+                      <span>{stat.label}</span>
+                      <span>{stat.val}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full ${stat.color} rounded-full transition-all duration-1000`} style={{ width: `${stat.val}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+              
+            <div className="text-[10px] text-slate-400 leading-relaxed font-medium mt-4">
+              Your strongest area is <span className="font-bold text-emerald-600">Knowledge</span>. Deployment is currently your biggest gap based on your current skills.
+            </div>
+          </div>
+        </div>
+
+        <div className={isStandalone ? 'space-y-5' : 'p-6'}>
+          {isStandalone && (
+            <>
+              <div className="rounded-lg border border-teal-100 bg-teal-50 p-5 shadow-sm">
+                <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-teal-700">
+                  <Activity className="h-3.5 w-3.5" />
+                  Current Context
+                </div>
+                <div className="text-sm font-bold text-slate-900">{currentNode?.data?.skill_name || 'You are here'}</div>
+                <p className="mt-2 text-xs leading-relaxed text-slate-600">{activeRouteDetails.sidebarReason}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Route Health</div>
+                  <div className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">ON TRACK</div>
+                </div>
+                <div className="space-y-3">
+                  {[
+                    { label: 'Core concepts', value: Math.min(100, knowledgeScore + 4), color: 'bg-emerald-500' },
+                    { label: 'Hands-on proof', value: practicalScore, color: 'bg-blue-500' },
+                    { label: 'Production polish', value: deploymentScore, color: 'bg-red-500' },
+                  ].map(item => (
+                    <div key={item.label}>
+                      <div className="mb-1 flex items-center justify-between text-xs font-bold text-slate-600">
+                        <span>{item.label}</span>
+                        <span>{item.value}%</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div className={`h-full rounded-full ${item.color}`} style={{ width: `${item.value}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Next Best Action */}
+          <div>
+            <div className="text-[10px] font-bold tracking-widest text-blue-600 uppercase mb-3 flex items-center gap-2">
+              <ArrowRight className="w-3 h-3" />
+              NEXT UP
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 hover:border-blue-400 transition-colors cursor-pointer shadow-sm" onClick={() => {
+              if (isStandalone) setActiveView('map');
+              if (nextNode) setSelectedNode(nextNode);
+            }}>
+              <div className="font-bold text-slate-900 text-sm mb-1">{nextNode?.data?.skill_name || "Next Milestone"}</div>
+              <p className="text-xs text-blue-700 leading-relaxed mb-4">
+                This is the best next action for the {activeRouteDetails.title.toLowerCase()} route.
+              </p>
+              <div className="flex items-center justify-between mt-auto">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">{activeRouteMode}</span>
+                <span className="text-blue-700">Continue Learning</span>
+              </div>
+            </div>
+
+            {/* Quick Stats */}
+            <div className="mt-8 grid grid-cols-2 gap-4">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div className="text-xl font-bold text-slate-900 mb-1">{completedNodesCount * 3.5}h</div>
+                <div className="text-[10px] text-slate-500 font-bold uppercase">Completed</div>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col items-center justify-center text-center">
+                <div className="text-2xl font-black text-slate-900">{completedNodesCount}/{totalNodesCount}</div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Milestones</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="h-screen w-full flex bg-slate-50 font-sans text-slate-700 overflow-hidden">
       
@@ -454,8 +954,67 @@ export default function InteractiveMap() {
           </div>
           <p className="text-xs text-slate-500">Select your preferred learning path</p>
         </div>
+        <div className="p-3 border-b border-slate-100">
+          <RouteNav compact />
+        </div>
+        <div className="p-4 border-b border-slate-100">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Profiles</div>
+            <div className="text-[10px] font-bold text-teal-700">{dashboardProfiles.length}</div>
+          </div>
+          <div className="max-h-36 space-y-2 overflow-y-auto pr-1">
+            {dashboardProfiles.map((item: any) => {
+              const isActive = item.id === currentChatId;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setCurrentChatId(item.id)}
+                  className={`w-full rounded-lg border p-2 text-left transition-all ${
+                    isActive ? 'border-teal-200 bg-teal-50' : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <UserRound className={`h-4 w-4 ${isActive ? 'text-teal-700' : 'text-slate-400'}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-black text-slate-900">{item.label}</div>
+                      <div className="truncate text-[10px] font-medium text-slate-500">{item.skills.join(', ') || 'No skills added'}</div>
+                    </div>
+                    <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black text-teal-700">{item.completedCount}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="p-4 border-b border-slate-100">
+          <div className="grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-100 p-1 shadow-inner">
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { id: 'map', label: 'Map', icon: MapIcon },
+            ].map(({ id, label, icon: Icon }) => {
+              const isActive = activeView === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setActiveView(id as 'dashboard' | 'map')}
+                  className={`flex h-10 items-center justify-center gap-2 rounded-lg text-xs font-black transition-all duration-200 ${
+                    isActive
+                      ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         
         <div className="p-4 flex-1 overflow-y-auto">
+          {activeView === 'map' ? (
+          <>
           <div className="space-y-3">
             {dynamicRoutes.map((route, idx) => (
               <button 
@@ -478,21 +1037,38 @@ export default function InteractiveMap() {
               <Bot className="w-3 h-3" />
               WHY THIS ROUTE?
             </div>
-            <p className="text-[11px] text-slate-600 leading-relaxed">
-              SkillRoute selected this path based on your current knowledge of {profile?.current_skills?.slice(0, 2).join(" and ") || "foundational concepts"}. It efficiently bridges the gap to your target goal.
-            </p>
+            <p className="text-[11px] text-slate-600 leading-relaxed">{activeRouteDetails.sidebarReason}</p>
+            <div className="mt-3 rounded-lg bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-blue-700">
+              Showing {totalNodesCount} learning stops
+            </div>
           </div>
+          </>
+          ) : (
+            <div className="rounded-lg border border-teal-100 bg-teal-50 p-4">
+              <div className="mb-2 flex items-center gap-2 text-xs font-bold text-teal-700">
+                <LayoutDashboard className="h-4 w-4" />
+                Dashboard Focus
+              </div>
+              <p className="text-[11px] leading-relaxed text-slate-600">
+                Progress graphs, current context, and the next step are expanded in the main workspace.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* CENTER: React Flow Map (Flexible) */}
+      {/* CENTER: Dashboard or React Flow Map (Flexible) */}
       <div className="flex-1 relative flex flex-col min-w-0">
+        {activeView === 'dashboard' ? (
+          renderDashboardContent(true)
+        ) : (
+        <>
         
         {/* Top Header Overlay */}
         <div className="absolute top-0 left-0 right-0 p-6 z-10 pointer-events-none flex justify-between items-start">
           <div>
             <h2 className="text-2xl font-bold text-slate-900 tracking-tight drop-shadow-sm">Your Learning Map</h2>
-            <p className="text-sm text-slate-600 font-medium">Your personalized route to {profile?.target_goal || "Production RAG Engineer"}</p>
+            <p className="text-sm text-slate-600 font-medium">Your personalized route to {targetGoal}</p>
           </div>
           <div className="pointer-events-auto bg-white border border-slate-200 rounded-lg p-1.5 flex gap-1 shadow-sm">
             <button disabled={historyIndex <= 0} onClick={() => navigateHistory(-1)} className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${historyIndex <= 0 ? 'text-slate-300' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>←</button>
@@ -505,8 +1081,9 @@ export default function InteractiveMap() {
         </div>
 
         <ReactFlow
-          nodes={nodes}
-          edges={edges}
+          key={activeRouteMode}
+          nodes={displayedNodes}
+          edges={displayedEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}
@@ -587,9 +1164,12 @@ export default function InteractiveMap() {
             </button>
           )}
         </div>
+        </>
+        )}
       </div>
 
       {/* RIGHT SIDEBAR: 350px width */}
+      {activeView === 'map' && (
       <div className="w-[350px] bg-white border-l border-slate-200 flex flex-col z-10 shadow-sm relative overflow-hidden">
         
         {/* Node Selected State */}
@@ -841,88 +1421,10 @@ export default function InteractiveMap() {
         </div>
 
         {/* Default Dashboard State */}
-        <div className="flex flex-col h-full overflow-y-auto">
-          {/* Target Card */}
-          <div className="p-6 border-b border-slate-100 bg-gradient-to-b from-amber-50 to-white">
-            <div className="text-[10px] font-bold tracking-widest text-amber-600 uppercase mb-2">TARGET DESTINATION</div>
-            <div className="flex items-start gap-3 mb-4">
-              <div className="mt-1"><Target className="w-5 h-5 text-amber-500" /></div>
-              <h2 className="text-xl font-bold text-slate-900 leading-tight">{profile?.target_goal || graphData?.target?.name || "Production RAG Engineer"}</h2>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="text-slate-500">Timeline: <span className="text-slate-900 font-semibold">{profile?.deadline || "~18 weeks"}</span></div>
-              <div className="text-slate-500">Pace: <span className="text-slate-900 font-semibold">{profile?.time_commitment || "8 hrs/wk"}</span></div>
-            </div>
-          </div>
-
-          {/* Readiness Card */}
-          <div className="p-6 border-b border-slate-100">
-            <div className="flex justify-between items-end mb-4">
-              <div className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">OVERALL READINESS</div>
-              <div className="text-2xl font-bold text-slate-900">{baseReadiness}%</div>
-            </div>
-            
-            <div className="space-y-4">
-              {[
-                { label: 'Knowledge', val: knowledgeScore, color: 'bg-emerald-500' },
-                { label: 'Practical', val: practicalScore, color: 'bg-blue-500' },
-                { label: 'Evaluation', val: evaluationScore, color: 'bg-amber-500' },
-                { label: 'Deployment', val: deploymentScore, color: 'bg-red-500' }
-              ].map(stat => (
-                <div key={stat.label}>
-                  <div className="flex justify-between text-[10px] font-bold text-slate-600 uppercase mb-1.5">
-                    <span>{stat.label}</span>
-                    <span>{stat.val}%</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full ${stat.color} rounded-full transition-all duration-1000`} style={{ width: `${stat.val}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-              
-            <div className="text-[10px] text-slate-400 leading-relaxed font-medium mt-4">
-              Your strongest area is <span className="font-bold text-emerald-600">Knowledge</span>. Deployment is currently your biggest gap based on your current skills.
-            </div>
-          </div>
-
-          {/* Next Best Action */}
-          <div className="p-6">
-            <div className="text-[10px] font-bold tracking-widest text-blue-600 uppercase mb-3 flex items-center gap-2">
-              <ArrowRight className="w-3 h-3" />
-              NEXT UP
-            </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 hover:border-blue-400 transition-colors cursor-pointer shadow-sm" onClick={() => {
-              const nextNode = nodes.find(n => n.data?.status === 'current' || n.data?.status === 'next') || nodes[1] || nodes[0];
-              if(nextNode) setSelectedNode(nextNode);
-            }}>
-              <div className="font-bold text-slate-900 text-sm mb-1">{nodes.find(n => n.data?.status === 'current' || n.data?.status === 'next')?.data?.skill_name || "Next Milestone"}</div>
-              <p className="text-xs text-blue-700 leading-relaxed mb-4">
-                You have completed the required prerequisites. Ready to begin!
-              </p>
-              <div className="flex items-center justify-between mt-auto">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Adaptive</span>
-                <span className="text-blue-700">Continue Learning →</span>
-              </div>
-            </div>
-
-            {/* Quick Stats */}
-            <div className="mt-8 grid grid-cols-2 gap-4">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <div className="text-xl font-bold text-slate-900 mb-1">{completedNodesCount * 3.5}h</div>
-                <div className="text-[10px] text-slate-500 font-bold uppercase">Completed</div>
-              </div>
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col items-center justify-center text-center">
-                <div className="text-2xl font-black text-slate-900">{completedNodesCount}/{totalNodesCount}</div>
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Milestones</div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {renderDashboardContent(false)}
 
       </div>
+      )}
     </div>
   );
 }
-
-

@@ -1,333 +1,681 @@
-import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, CheckCircle, Loader2, Compass, BrainCircuit, ChevronDown } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  ArrowRight,
+  CheckCircle,
+  Clock,
+  Compass,
+  CopyPlus,
+  ExternalLink,
+  LayoutDashboard,
+  PlaySquare,
+  Plus,
+  Save,
+  BookOpen,
+  Target,
+  Trash2,
+  ToggleLeft,
+  ToggleRight,
+  UserRound,
+  WalletCards,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useChatContext } from '../context/ChatContext';
+import RouteNav from '../components/RouteNav';
 
-import { API_URL } from '../config';
+const profileTemplates = [
+  {
+    name: 'RAG Engineer',
+    profile: {
+      target_goal: 'Production RAG Engineer',
+      current_skills: ['Python', 'Machine Learning Basics'],
+      budget: 'FREE',
+      time_commitment: '8 hrs/wk',
+      deadline: '~18 weeks',
+      learner_level: 'INTERMEDIATE',
+    },
+  },
+  {
+    name: 'Frontend Engineer',
+    profile: {
+      target_goal: 'Frontend Engineer',
+      current_skills: ['HTML', 'CSS', 'JavaScript'],
+      budget: 'FREE',
+      time_commitment: '6 hrs/wk',
+      deadline: '~14 weeks',
+      learner_level: 'BEGINNER',
+    },
+  },
+  {
+    name: 'Data Analyst',
+    profile: {
+      target_goal: 'Data Analyst',
+      current_skills: ['Spreadsheets', 'Basic SQL'],
+      budget: 'LOW',
+      time_commitment: '5 hrs/wk',
+      deadline: '~12 weeks',
+      learner_level: 'BEGINNER',
+    },
+  },
+  {
+    name: 'Cloud DevOps Engineer',
+    profile: {
+      target_goal: 'Cloud DevOps Engineer',
+      current_skills: ['Linux Basics', 'Git', 'Networking'],
+      budget: 'FREE',
+      time_commitment: '8 hrs/wk',
+      deadline: '~20 weeks',
+      learner_level: 'INTERMEDIATE',
+    },
+  },
+];
+
+const emptyProfile = {
+  target_goal: '',
+  current_skills: [] as string[],
+  budget: 'FREE',
+  time_commitment: '',
+  deadline: '',
+  learner_level: 'INTERMEDIATE',
+};
+
+const getRecommendationFocus = (goal: string, currentSkills: string) => {
+  const normalized = `${goal} ${currentSkills}`.toLowerCase();
+
+  if (normalized.includes('frontend') || normalized.includes('react')) {
+    return ['React State Management', 'Responsive UI Systems', 'TypeScript Patterns'];
+  }
+
+  if (normalized.includes('data analyst') || normalized.includes('sql') || normalized.includes('analytics')) {
+    return ['SQL Joins & Aggregations', 'Dashboard Storytelling', 'Exploratory Analysis'];
+  }
+
+  if (normalized.includes('devops') || normalized.includes('cloud') || normalized.includes('kubernetes')) {
+    return ['CI/CD Pipelines', 'Infrastructure as Code', 'Kubernetes Operations'];
+  }
+
+  return ['Vector Databases', 'Embeddings & Transformers', 'RAG Pipeline Architecture'];
+};
+
+const courseLinksBySkill: Record<string, string> = {
+  'Vector Databases': 'https://www.coursera.org/learn/vector-databases-and-retrieval-data-engineering',
+  'Embeddings & Transformers': 'https://www.coursera.org/learn/generative-ai-language-modeling-with-transformers',
+  'RAG Pipeline Architecture': 'https://www.coursera.org/learn/retrieval-augmented-generation-rag',
+  'React State Management': 'https://www.coursera.org/learn/react-basics',
+  'Responsive UI Systems': 'https://www.coursera.org/learn/creating-responsive-websites-for-any-device',
+  'TypeScript Patterns': 'https://www.coursera.org/learn/learn-typescript',
+  'SQL Joins & Aggregations': 'https://www.coursera.org/specializations/sql-data-analysis-business-insights',
+  'Dashboard Storytelling': 'https://www.coursera.org/learn/dlai-data-storytelling',
+  'Exploratory Analysis': 'https://www.coursera.org/projects/exploratory-data-analysis-python-pandas/',
+  'CI/CD Pipelines': 'https://www.coursera.org/specializations/devops-linux-docker-kubernetes-ci-cd-iac',
+  'Infrastructure as Code': 'https://www.coursera.org/specializations/devops-linux-docker-kubernetes-ci-cd-iac',
+  'Kubernetes Operations': 'https://www.coursera.org/specializations/devops-linux-docker-kubernetes-ci-cd-iac',
+};
+
+const buildCourseraCourseUrl = (skill: string, goal: string, levelLabel: string) => {
+  const query = encodeURIComponent(`${skill} ${goal} ${levelLabel}`);
+  return courseLinksBySkill[skill] || `https://www.coursera.org/search?query=${query}&productTypeDescription=Courses`;
+};
+
+const youtubeVideoIdsBySkill: Record<string, string> = {
+  'Vector Databases': 'klTvEwg3oJ4',
+  'Embeddings & Transformers': 'wjZofJX0v4M',
+  'RAG Pipeline Architecture': 'T-D1OfcDW1M',
+  'React State Management': 'bMknfKXIFA8',
+  'Responsive UI Systems': 'srvUrASNj0s',
+  'TypeScript Patterns': 'BwuLxPH8IDs',
+  'SQL Joins & Aggregations': 'HXV3zeQKqGY',
+  'Dashboard Storytelling': 'fSgEeI2Xpdc',
+  'Exploratory Analysis': 'vmEHCJofslg',
+  'CI/CD Pipelines': 'R8_veQiYBjI',
+  'Infrastructure as Code': 'SLB_c_ayRMo',
+  'Kubernetes Operations': 'X48VuDVv0do',
+};
+
+const buildPlayableYoutubeUrl = (skill: string) => {
+  const videoId = youtubeVideoIdsBySkill[skill] || 'rfscVS0vtbw';
+  return `https://www.youtube.com/watch?v=${videoId}&autoplay=1`;
+};
+
+const buildProfileRecommendations = (profile: {
+  target_goal: string;
+  current_skills: string;
+  budget: string;
+  learner_level: string;
+}) => {
+  const goal = profile.target_goal || 'Production RAG Engineer';
+  const focusSkills = getRecommendationFocus(goal, profile.current_skills);
+  const levelLabel = profile.learner_level === 'BEGINNER' ? 'beginner' : profile.learner_level === 'ADVANCED' ? 'advanced' : 'intermediate';
+  const isFree = profile.budget === 'FREE';
+
+  const youtube = focusSkills.map((skill, index) => {
+    return {
+      title: `${skill} tutorial for ${goal}`,
+      source: index === 0 ? 'YouTube Learning' : index === 1 ? 'Project walkthrough' : 'Concept deep dive',
+      match: 96 - index * 5,
+      url: buildPlayableYoutubeUrl(skill),
+    };
+  });
+
+  const courses = focusSkills.map((skill, index) => {
+    return {
+      title: `${skill}: ${levelLabel} course path`,
+      provider: isFree ? 'Coursera audit' : 'Coursera',
+      cost: isFree ? 'FREE' : profile.budget,
+      match: 94 - index * 4,
+      url: buildCourseraCourseUrl(skill, goal, levelLabel),
+    };
+  });
+
+  return { focusSkills, youtube, courses };
+};
 
 export default function ChatProfiler() {
-  const { messages, setMessages, profile, setProfile, isComplete, setIsComplete, chats, currentChatId, setCurrentChatId, createNewChat } = useChatContext();
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef(null);
+  const {
+    profile,
+    setProfile,
+    setIsComplete,
+    chats,
+    currentChatId,
+    setCurrentChatId,
+    createNewChat,
+    deleteChat,
+    updateCurrentChatTitle,
+    completedSkills,
+  } = useChatContext();
   const navigate = useNavigate();
-  
   const userEmail = localStorage.getItem('userEmail') || 'ADMIN@SKILLROUTE.COM';
+  const currentProfile = profile || emptyProfile;
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const [form, setForm] = useState({
+    title: 'Untitled Profile',
+    target_goal: '',
+    current_skills: '',
+    budget: 'FREE',
+    time_commitment: '',
+    deadline: '',
+    learner_level: 'INTERMEDIATE',
+  });
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, loading]);
+    const activeChat = chats.find((chat: any) => chat.id === currentChatId);
+    setForm({
+      title: activeChat?.title || currentProfile.target_goal || 'Untitled Profile',
+      target_goal: currentProfile.target_goal || '',
+      current_skills: currentProfile.current_skills?.join(', ') || '',
+      budget: currentProfile.budget || 'FREE',
+      time_commitment: currentProfile.time_commitment || '',
+      deadline: currentProfile.deadline || '',
+      learner_level: currentProfile.learner_level || 'INTERMEDIATE',
+    });
+  }, [chats, currentChatId, currentProfile]);
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
-    if (!input.trim() || isComplete) return;
+  const profileCompletion = useMemo(() => {
+    const fields = [
+      currentProfile.target_goal,
+      currentProfile.current_skills?.length,
+      currentProfile.budget,
+      currentProfile.time_commitment,
+      currentProfile.deadline,
+      currentProfile.learner_level,
+    ];
+    return Math.round((fields.filter(Boolean).length / fields.length) * 100);
+  }, [currentProfile]);
 
-    const userMessage = input;
-    setInput('');
-    const newMessages = [...messages, { role: 'user', content: userMessage }];
-    setMessages(newMessages);
-    setLoading(true);
+  const draftRecommendations = useMemo(() => buildProfileRecommendations({
+    target_goal: form.target_goal,
+    current_skills: form.current_skills,
+    budget: form.budget,
+    learner_level: form.learner_level,
+  }), [form]);
 
-    // Artificial delay to allow user to see the Thought Process steps (12s)
-    await new Promise(resolve => setTimeout(resolve, 12000));
+  const savedProfiles = chats.map((chat: any) => ({
+    ...chat,
+    label: chat.title || chat.profile?.target_goal || 'Untitled Profile',
+    goal: chat.profile?.target_goal || 'Goal not set',
+    skills: chat.profile?.current_skills || [],
+    level: chat.profile?.learner_level || 'Not set',
+    completedCount: chat.completedSkills?.length || 0,
+  }));
 
-    try {
-      const res = await fetch(`${API_URL}/api/chat/profiler`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMessage,
-          history: newMessages.slice(0, -1)
-        })
-      });
+  const handleSave = () => {
+    const nextProfile = {
+      target_goal: form.target_goal.trim(),
+      current_skills: form.current_skills
+        .split(',')
+        .map(skill => skill.trim())
+        .filter(Boolean),
+      budget: form.budget,
+      time_commitment: form.time_commitment.trim(),
+      deadline: form.deadline.trim(),
+      learner_level: form.learner_level,
+    };
 
-      const data = await res.json();
-      
-      setProfile(data.profile);
-      
-      if (data.is_complete) {
-        setIsComplete(true);
-        setMessages(prev => [...prev, { 
-          role: 'ai', 
-          content: "Perfect! I have all the information I need. I've generated your Learner Profile. Let's go to your Interactive Map!" 
-        }]);
-      } else {
-        setMessages(prev => [...prev, { 
-          role: 'ai', 
-          content: data.follow_up_question || "Could you tell me more about your current skills and available time?" 
-        }]);
-      }
-    } catch (err) {
-      console.error(err);
-      setMessages(prev => [...prev, { role: 'ai', content: "Sorry, I had trouble connecting to my brain. Is the backend running?" }]);
-    } finally {
-      setLoading(false);
-    }
+    const title = form.title.trim() || nextProfile.target_goal || 'Untitled Profile';
+    updateCurrentChatTitle(title);
+    setProfile(nextProfile);
+    setIsComplete(Boolean(nextProfile.target_goal && nextProfile.current_skills.length));
   };
 
-  const handleNewChat = () => {
-    createNewChat();
+  const handleTemplate = (template: typeof profileTemplates[number]) => {
+    setForm({
+      title: template.name,
+      target_goal: template.profile.target_goal,
+      current_skills: template.profile.current_skills.join(', '),
+      budget: template.profile.budget,
+      time_commitment: template.profile.time_commitment,
+      deadline: template.profile.deadline,
+      learner_level: template.profile.learner_level,
+    });
+  };
+
+  const handleDelete = (chatId: number) => {
+    deleteChat(chatId);
+  };
+
+  const handleOpenDashboard = () => {
+    handleSave();
+    navigate('/dashboard');
   };
 
   return (
-    <div className="h-screen bg-[#F8FAFC] flex font-sans overflow-hidden">
-      
-      {/* Left Sidebar (Dark Mode Navigation) */}
-      <div className="w-64 bg-[#111827] text-slate-300 flex flex-col flex-shrink-0 shadow-2xl z-20">
-        {/* Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center gap-3">
-          <div className="p-1.5 bg-teal-500 rounded-lg">
-            <Compass className="w-5 h-5 text-white" />
+    <div className="h-screen overflow-hidden bg-slate-50 font-sans text-slate-700">
+      <div className="flex h-full">
+        <aside className="flex w-72 flex-shrink-0 flex-col border-r border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 p-5">
+            <div className="mb-1 flex items-center gap-2">
+              <div className="rounded-lg bg-teal-600 p-2 text-white">
+                <Compass className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-lg font-black tracking-tight text-slate-950">SkillRoute</div>
+                <div className="text-xs font-medium text-slate-500">Profile Studio</div>
+              </div>
+            </div>
           </div>
-          <span className="text-white font-bold tracking-tight">SkillRoute</span>
-        </div>
-        
-        {/* Navigation Sections */}
-        <div className="p-4 flex-1 overflow-y-auto">
-          
-          <div className="text-xs font-bold text-slate-500 mb-4 mt-2 flex justify-between items-center">
-            <span>RECENT CHATS</span>
-            <span className="cursor-pointer hover:text-white" onClick={handleNewChat} title="New Chat">+</span>
+
+          <div className="border-b border-slate-100 p-3">
+            <RouteNav compact />
           </div>
-          <div className="space-y-1">
-            {chats.map(chat => (
-              <button 
-                key={chat.id}
-                onClick={() => setCurrentChatId(chat.id)}
-                className={`w-full text-left p-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${chat.id === currentChatId ? 'bg-slate-800 text-teal-400' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'}`}
+
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Learner Profiles</div>
+                <div className="mt-1 text-[11px] font-semibold text-slate-500">{savedProfiles.length} saved - toggle active or delete</div>
+              </div>
+              <button
+                type="button"
+                onClick={createNewChat}
+                className="rounded-lg border border-teal-100 bg-teal-50 p-2 text-teal-700 transition-colors hover:bg-teal-100"
+                title="Create profile"
               >
-                <Bot className="w-4 h-4" /> {chat.title}
-              </button>
-            ))}
-          </div>
-        </div>
-        
-        {/* User Profile */}
-        <div className="p-4 border-t border-slate-800 flex items-center gap-3 hover:bg-slate-800 cursor-pointer transition-colors">
-          <div className="w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
-            ME
-          </div>
-          <div>
-            <div className="text-sm font-bold text-white">My Workspace</div>
-            <div className="text-[10px] text-slate-500 uppercase">{userEmail}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Middle Column (Chat Area) */}
-      <div className="flex-1 flex flex-col bg-white border-r border-slate-200 shadow-xl z-10 relative">
-        <div className="h-14 border-b border-slate-100 flex items-center px-6 gap-3">
-          <Bot className="w-5 h-5 text-teal-600" />
-          <h1 className="font-bold text-slate-800">Learning Coach Chat</h1>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-40">
-          {messages.map((msg: any, idx: any) => (
-            <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'ai' && (
-                <div className="w-8 h-8 rounded bg-teal-50 flex items-center justify-center flex-shrink-0 border border-teal-100 mt-auto mb-2">
-                  <Bot className="w-5 h-5 text-teal-700" />
-                </div>
-              )}
-              
-              <div className="flex flex-col max-w-[80%]">
-                {/* Thought Process for AI responses (skip the first greeting) */}
-                {msg.role === 'ai' && idx > 0 && (
-                  <ThoughtProcess isRunning={false} />
-                )}
-
-                <div className={`px-5 py-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                  msg.role === 'user' 
-                    ? 'bg-slate-100 text-slate-800 rounded-br-none ml-auto' 
-                    : 'text-slate-700 bg-white border border-slate-100 rounded-tl-none'
-                }`}>
-                  {msg.content}
-                </div>
-              </div>
-            </div>
-          ))}
-          {loading && (
-            <div className="flex gap-4 justify-start">
-              <div className="w-8 h-8 rounded bg-teal-50 flex items-center justify-center flex-shrink-0 border border-teal-100 mt-2">
-                <Bot className="w-5 h-5 text-teal-700" />
-              </div>
-              <div className="w-full max-w-[80%]">
-                <ThoughtProcess isRunning={true} />
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input Area Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white to-transparent">
-          {/* Quick Action Pills */}
-          {!isComplete && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              <span className="text-[10px] font-bold text-slate-400 uppercase mr-2 flex items-center">Context:</span>
-              <button type="button" onClick={() => setInput("Software Engineering")} className="px-3 py-1 bg-teal-50 text-teal-700 text-xs font-semibold rounded-full border border-teal-200 shadow-sm hover:bg-teal-100 transition-colors">Software Engineering</button>
-              <button type="button" onClick={() => setInput("No Budget")} className="px-3 py-1 bg-teal-50 text-teal-700 text-xs font-semibold rounded-full border border-teal-200 shadow-sm hover:bg-teal-100 transition-colors">No Budget</button>
-              <button type="button" onClick={() => setInput("6 Months")} className="px-3 py-1 bg-teal-50 text-teal-700 text-xs font-semibold rounded-full border border-teal-200 shadow-sm hover:bg-teal-100 transition-colors">6 Months</button>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="relative">
-            <input 
-              type="text" 
-              value={input}
-              onChange={(e: any) => setInput(e.target.value)}
-              disabled={loading || isComplete}
-              placeholder={isComplete ? "Profile complete! Click the button below." : "Ask across all your skills..."}
-              className="w-full pl-6 pr-14 py-4 bg-white border border-slate-200 rounded-xl focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 outline-none transition-all disabled:opacity-50 text-sm shadow-sm"
-            />
-            <button 
-              type="submit"
-              disabled={loading || !input.trim() || isComplete}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 transition-colors shadow-sm"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </form>
-          <div className="text-center mt-2">
-            <span className="text-[10px] text-slate-400">AI answers can vary. Always review generated routes.</span>
-          </div>
-
-          {isComplete && (
-            <div className="mt-4 flex justify-center">
-              <button onClick={() => navigate('/dashboard')} className="bg-[#2D6A62] hover:bg-teal-700 text-white px-8 py-3 rounded-lg font-bold flex items-center gap-3 transition-colors shadow-lg hover:-translate-y-0.5 duration-200">
-                <CheckCircle className="w-5 h-5 text-teal-200" /> 
-                <span>Generate & View Map</span>
+                <Plus className="h-4 w-4" />
               </button>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Right Column (Live Profile Context) */}
-      <div className="w-80 bg-[#FAFAFA] flex flex-col flex-shrink-0 z-0">
-        <div className="h-14 border-b border-slate-200 flex items-center justify-between px-4">
-          <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-teal-500"></span>
-            Live Profile Context
-          </h3>
-        </div>
-        
-        <div className="p-6 space-y-6 flex-1 overflow-y-auto">
-          <ProfileField label="Target Goal" value={profile?.target_goal} />
-          <ProfileField label="Current Skills" value={profile?.current_skills?.join(", ")} />
-          <ProfileField label="Budget" value={profile?.budget} />
-          <ProfileField label="Time Commitment" value={profile?.time_commitment} />
-          <ProfileField label="Deadline" value={profile?.deadline} />
-        </div>
+            <div className="space-y-2">
+              {savedProfiles.map((chat: any) => {
+                const isActive = chat.id === currentChatId;
+                return (
+                  <div
+                    key={chat.id}
+                    className={`group rounded-lg border p-3 transition-all ${
+                      isActive ? 'border-teal-200 bg-teal-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setCurrentChatId(chat.id)}
+                      className="w-full text-left"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`rounded-lg p-2 ${isActive ? 'bg-white text-teal-700' : 'bg-slate-50 text-slate-500'}`}>
+                          <UserRound className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-black text-slate-900">{chat.label}</div>
+                          <div className="mt-1 truncate text-[11px] font-bold text-teal-700">{chat.goal}</div>
+                          <div className="mt-1 truncate text-[11px] font-medium text-slate-500">{chat.skills.join(', ') || 'No skills added'}</div>
+                        </div>
+                      </div>
+                    </button>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase text-slate-500">{chat.level}</span>
+                      <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase text-teal-700">{chat.completedCount} done</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentChatId(chat.id)}
+                        className={`flex h-9 items-center justify-center gap-2 rounded-lg border text-xs font-black transition-all ${
+                          isActive
+                            ? 'border-teal-200 bg-white text-teal-700'
+                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-teal-200 hover:text-teal-700'
+                        }`}
+                      >
+                        {isActive ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+                        {isActive ? 'Active' : 'Use Profile'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(chat.id)}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-600 transition-all hover:bg-red-100"
+                        title="Delete profile"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 p-4">
+            <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-600 text-xs font-black text-white">ME</div>
+              <div className="min-w-0">
+                <div className="text-sm font-black text-slate-900">My Workspace</div>
+                <div className="truncate text-[10px] font-bold uppercase text-slate-400">{userEmail}</div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-6xl px-8 py-7">
+            <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-teal-700">
+                  <Target className="h-4 w-4" />
+                  Learner Profile
+                </div>
+                <h1 className="text-3xl font-black tracking-tight text-slate-950">Build the profile that powers your dashboard</h1>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+                  Select or create a profile, fill in the learning details, then open the dashboard to generate the route from this exact context.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenDashboard}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#2D6A62] px-5 py-3 text-sm font-black text-white shadow-md transition-all hover:bg-[#21524b] hover:shadow-lg"
+              >
+                <LayoutDashboard className="h-4 w-4" />
+                Open Dashboard
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+              <div className="space-y-5">
+              <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-black text-slate-950">Profile Details</h2>
+                      <p className="mt-1 text-xs font-medium text-slate-500">These fields sync directly with the dashboard route generator.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-black text-white shadow-sm transition-colors hover:bg-teal-700"
+                    >
+                      <Save className="h-4 w-4" />
+                      Save Profile
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 p-5 md:grid-cols-2">
+                  <Field label="Profile Name">
+                    <input
+                      value={form.title}
+                      onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
+                      className="profile-input"
+                      placeholder="My AI Engineer Plan"
+                    />
+                  </Field>
+                  <Field label="Target Goal">
+                    <input
+                      value={form.target_goal}
+                      onChange={(e) => setForm(prev => ({ ...prev, target_goal: e.target.value }))}
+                      className="profile-input"
+                      placeholder="Production RAG Engineer"
+                    />
+                  </Field>
+                  <Field label="Current Skills">
+                    <textarea
+                      value={form.current_skills}
+                      onChange={(e) => setForm(prev => ({ ...prev, current_skills: e.target.value }))}
+                      className="profile-input min-h-28 resize-none"
+                      placeholder="Python, SQL, React"
+                    />
+                  </Field>
+                  <div className="grid gap-5">
+                    <Field label="Learner Level">
+                      <select
+                        value={form.learner_level}
+                        onChange={(e) => setForm(prev => ({ ...prev, learner_level: e.target.value }))}
+                        className="profile-input"
+                      >
+                        <option value="BEGINNER">Beginner</option>
+                        <option value="INTERMEDIATE">Intermediate</option>
+                        <option value="ADVANCED">Advanced</option>
+                      </select>
+                    </Field>
+                    <Field label="Budget">
+                      <select
+                        value={form.budget}
+                        onChange={(e) => setForm(prev => ({ ...prev, budget: e.target.value }))}
+                        className="profile-input"
+                      >
+                        <option value="FREE">Free</option>
+                        <option value="LOW">Low</option>
+                        <option value="FLEXIBLE">Flexible</option>
+                        <option value="PAID">Paid</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <Field label="Time Commitment">
+                    <input
+                      value={form.time_commitment}
+                      onChange={(e) => setForm(prev => ({ ...prev, time_commitment: e.target.value }))}
+                      className="profile-input"
+                      placeholder="8 hrs/wk"
+                    />
+                  </Field>
+                  <Field label="Deadline">
+                    <input
+                      value={form.deadline}
+                      onChange={(e) => setForm(prev => ({ ...prev, deadline: e.target.value }))}
+                      className="profile-input"
+                      placeholder="~18 weeks"
+                    />
+                  </Field>
+                </div>
+
+                <div className="border-t border-slate-100 p-5">
+                  <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    <CopyPlus className="h-3.5 w-3.5" />
+                    Quick Starts
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    {profileTemplates.map(template => (
+                      <button
+                        key={template.name}
+                        type="button"
+                        onClick={() => handleTemplate(template)}
+                        className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-left transition-all hover:border-teal-200 hover:bg-teal-50"
+                      >
+                        <div className="text-sm font-black text-slate-900">{template.name}</div>
+                        <div className="mt-1 text-[11px] font-medium text-slate-500">{template.profile.time_commitment} - {template.profile.deadline}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-black text-slate-950">Profile Recommendations</h2>
+                      <p className="mt-1 text-xs font-medium text-slate-500">Live video and course suggestions generated from this profile before you open the map.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {draftRecommendations.focusSkills.map(skill => (
+                        <span key={skill} className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 p-5 lg:grid-cols-2">
+                  <div>
+                    <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-red-600">
+                      <PlaySquare className="h-4 w-4" />
+                      YouTube Recommender
+                    </div>
+                    <div className="space-y-3">
+                      {draftRecommendations.youtube.map(video => (
+                        <RecommendationCard
+                          key={video.title}
+                          title={video.title}
+                          subtitle={video.source}
+                          badge={`${video.match}% match`}
+                          url={video.url}
+                          accent="red"
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-blue-600">
+                      <BookOpen className="h-4 w-4" />
+                      Course Recommender
+                    </div>
+                    <div className="space-y-3">
+                      {draftRecommendations.courses.map(course => (
+                        <RecommendationCard
+                          key={course.title}
+                          title={course.title}
+                          subtitle={`${course.provider} - ${course.cost}`}
+                          badge={`${course.match}% match`}
+                          url={course.url}
+                          accent="blue"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+              </div>
+
+              <aside className="space-y-5">
+                <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Dashboard Sync</div>
+                      <h2 className="mt-1 text-lg font-black text-slate-950">Active profile</h2>
+                    </div>
+                    <div className="relative h-16 w-16 rounded-full bg-slate-100">
+                      <div
+                        className="absolute inset-0 rounded-full"
+                        style={{ background: `conic-gradient(#0d9488 ${profileCompletion * 3.6}deg, #e2e8f0 0deg)` }}
+                      />
+                      <div className="absolute inset-2 flex items-center justify-center rounded-full bg-white text-sm font-black text-slate-900">
+                        {profileCompletion}%
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <SummaryField icon={Target} label="Goal" value={currentProfile.target_goal || 'Not set'} />
+                    <SummaryField icon={UserRound} label="Skills" value={currentProfile.current_skills?.join(', ') || 'Not set'} />
+                    <SummaryField icon={WalletCards} label="Budget" value={currentProfile.budget || 'Not set'} />
+                    <SummaryField icon={Clock} label="Pace" value={currentProfile.time_commitment || 'Not set'} />
+                  </div>
+                </section>
+
+                <section className="rounded-lg border border-teal-100 bg-teal-50 p-5 shadow-sm">
+                  <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-teal-700">
+                    <CheckCircle className="h-4 w-4" />
+                    Current Route State
+                  </div>
+                  <div className="text-2xl font-black text-slate-950">{completedSkills.length} completed skills</div>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                    Progress stays attached to this profile. Switch profiles on the left to see a different dashboard context.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleOpenDashboard}
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-black text-teal-700 shadow-sm transition-all hover:bg-teal-100"
+                  >
+                    Generate route
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </section>
+              </aside>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );
 }
 
-const ProfileField = ({ label, value }: any) => (
-  <div className="mb-4">
-    <div className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">{label}</div>
-    <div className={`text-sm ${value ? 'text-slate-800' : 'text-slate-400 italic'}`}>
-      {value || 'Not yet identified'}
+const Field = ({ label, children }: { label: string; children: ReactNode }) => (
+  <label className="block">
+    <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</span>
+    {children}
+  </label>
+);
+
+const SummaryField = ({ icon: Icon, label, value }: { icon: any; label: string; value: string }) => (
+  <div className="flex items-start gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+    <div className="rounded-lg bg-white p-2 text-teal-700">
+      <Icon className="h-4 w-4" />
+    </div>
+    <div className="min-w-0">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</div>
+      <div className="mt-1 text-sm font-bold text-slate-900">{value}</div>
     </div>
   </div>
 );
 
-function MapIcon(props: any) {
+const RecommendationCard = ({
+  title,
+  subtitle,
+  badge,
+  url,
+  accent,
+}: {
+  title: string;
+  subtitle: string;
+  badge: string;
+  url: string;
+  accent: 'red' | 'blue';
+}) => {
+  const accentClass = accent === 'red'
+    ? 'bg-red-50 text-red-700 border-red-100 hover:border-red-200'
+    : 'bg-blue-50 text-blue-700 border-blue-100 hover:border-blue-200';
+
   return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
-      <line x1="9" x2="9" y1="3" y2="18"></line>
-      <line x1="15" x2="15" y1="6" y2="21"></line>
-    </svg>
-  );
-}
-
-const ThoughtProcess = ({ isRunning = false }: { isRunning: boolean }) => {
-  const [expanded, setExpanded] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
-
-  useEffect(() => {
-    if (isRunning) {
-      setCurrentStep(0);
-      const interval = setInterval(() => {
-        setCurrentStep(prev => Math.min(prev + 1, 3));
-      }, 3000); // Advance step every 3 seconds
-      return () => clearInterval(interval);
-    }
-  }, [isRunning]);
-
-  const steps = [
-    { name: 'Intent Extraction (Goals)', status: isRunning ? (currentStep > 0 ? 'done' : currentStep === 0 ? 'loading' : 'pending') : 'done' },
-    { name: 'Gap Analysis (Skill Mapping)', status: isRunning ? (currentStep > 1 ? 'done' : currentStep === 1 ? 'loading' : 'pending') : 'done' },
-    { name: 'DAG Sequencing (Pathways)', status: isRunning ? (currentStep > 2 ? 'done' : currentStep === 2 ? 'loading' : 'pending') : 'done' },
-    { name: 'Roadmap Generation (Finalizing)', status: isRunning ? (currentStep > 3 ? 'done' : currentStep === 3 ? 'loading' : 'pending') : 'done' },
-  ];
-
-  if (isRunning) {
-    return (
-      <div className="bg-white border border-slate-100 rounded-2xl p-4 w-full shadow-sm mb-4">
-        <div className="text-[10px] font-bold text-slate-500 tracking-widest uppercase mb-4 flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin text-[#6366f1]" />
-          SKILLROUTE-X — PRIVATE MODE RUNNING
-        </div>
-        <div className="space-y-3">
-          {steps.map((step, i) => (
-            <div key={i} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-              {step.status === 'done' ? (
-                <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
-                  <CheckCircle className="w-4 h-4 text-white" />
-                </div>
-              ) : step.status === 'loading' ? (
-                <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center">
-                  <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
-                </div>
-              ) : (
-                <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-slate-400"></div>
-                </div>
-              )}
-              <div>
-                <div className="text-sm font-bold text-slate-700">{step.name}</div>
-                <div className={`text-[10px] font-medium ${step.status === 'done' ? 'text-emerald-600' : 'text-slate-500'}`}>
-                  {step.status === 'done' ? '✓ Complete' : step.status === 'loading' ? 'Processing...' : 'Waiting'}
-                </div>
-              </div>
-            </div>
-          ))}
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className={`group flex items-start justify-between gap-4 rounded-lg border bg-white p-4 shadow-sm transition-all hover:shadow-md ${accentClass}`}
+    >
+      <div className="min-w-0">
+        <div className="line-clamp-2 text-sm font-black text-slate-900">{title}</div>
+        <div className="mt-1 text-xs font-semibold text-slate-500">{subtitle}</div>
+        <div className="mt-3 inline-flex rounded-full bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500 shadow-sm">
+          {badge}
         </div>
       </div>
-    );
-  }
-
-  return (
-    <div className="mb-3">
-      <button 
-        onClick={() => setExpanded(!expanded)} 
-        className="flex items-center gap-2 text-xs font-semibold text-slate-500 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-xl transition-colors border border-slate-200 shadow-sm"
-      >
-        <BrainCircuit className="w-3.5 h-3.5 text-indigo-500" />
-        View Thought Process
-        <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-      </button>
-      {expanded && (
-        <div className="mt-2 p-4 bg-slate-50 border border-slate-200 rounded-xl max-w-md">
-          <ul className="space-y-3">
-            {steps.map((step, i) => (
-              <li key={i} className="text-xs text-slate-600 flex items-center gap-2 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-                {step.name} — <span className="font-bold text-emerald-600">Done</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
+      <ExternalLink className="mt-0.5 h-4 w-4 flex-shrink-0 transition-transform group-hover:translate-x-0.5" />
+    </a>
   );
 };
-
-
