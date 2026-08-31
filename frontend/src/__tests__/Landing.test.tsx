@@ -3,7 +3,11 @@ import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Landing from '../pages/Landing';
 
-// Simple test to ensure the component renders without crashing
+// Mock the 3D canvas component — WebGL/Canvas is not available in jsdom
+vi.mock('../components/Hero3DBackground', () => ({
+  default: () => null,
+}));
+
 describe('Landing Page', () => {
   it('renders the main heading', () => {
     render(
@@ -11,6 +15,6 @@ describe('Landing Page', () => {
         <Landing />
       </BrowserRouter>
     );
-    expect(screen.getByText(/Your Learning Journey/i)).toBeInTheDocument();
+    expect(screen.getByText(/Your AI Navigator/i)).toBeInTheDocument();
   });
 });
