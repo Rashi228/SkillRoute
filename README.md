@@ -1,8 +1,24 @@
-# SkillRoute — AI-Powered Personalized Learning Path Recommender
+<div align="center">
+  <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Travel%20and%20places/Rocket.png" alt="SkillRoute Rocket" width="100" />
+  
+  <h1>SkillRoute</h1>
+  <h3>AI-Powered Personalized Learning Path Recommender</h3>
+
+  <p align="center">
+    <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
+    <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=FastAPI&logoColor=white" alt="FastAPI" />
+    <img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+    <img src="https://img.shields.io/badge/AI_Engine-Groq_LLaMA3-FF9D00?style=for-the-badge" alt="Groq LLaMA3" />
+  </p>
+</div>
+
+---
 
 SkillRoute is an intelligent, personalized learning platform that dynamically maps out optimal educational journeys based on a user's skills, budget, and learning preferences. 
 
 Built on a powerful **Hybrid Recommender** engine and **Grounded RAG (Retrieval-Augmented Generation)** architecture, the platform acts as a GPS for education. It moves away from static lists of courses and instead provides a highly interactive, node-based Directed Acyclic Graph (DAG) that visualizes prerequisites, core concepts, and recommended resources to reach a specific career destination without hallucinations.
+
+
 
 ## System Architecture
 
@@ -63,7 +79,7 @@ The application is built on a modern decoupled architecture:
     [Complete Node]  [Struggling]    [AI Coach Chat]
            │              │              │
            │              ▼              ▼
-           │        Adaptive Loop     Intent Engine (Groq)
+           │        Adaptive Loop    Intent Engine (Groq)
            │        (Beginner Query)  (MARK_SKILL_COMPLETED)
            │              │              │
            └──────────────┼──────────────┘
@@ -94,7 +110,7 @@ The application is built on a modern decoupled architecture:
                  [Hybrid Recommender]
                           │ α·Relevance + β·Difficulty + γ·Quality
                           ▼
-                  [Match % + URLs]
+                 [Match % + URLs]
                           │ (Sidebar UI Rendering)
                           ▼
                          USER
