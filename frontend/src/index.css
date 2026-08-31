@@ -6,13 +6,25 @@
   --color-primary: hsl(221.2, 83.2%, 53.3%);
   --color-primary-foreground: hsl(210, 40%, 98%);
   --radius-md: 0.5rem;
+  --font-sans: 'Inter', system-ui, sans-serif;
 }
 
 @layer base {
   * {
     @apply border-gray-200;
   }
+  html {
+    scroll-behavior: smooth;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .profile-input {
+    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none transition-all placeholder:text-slate-300 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10;
   }
 }
