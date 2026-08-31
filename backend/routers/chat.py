@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from schemas import ProfilerResponse, LearnerProfile
 from agents.profiler import extract_profile_logic
+from agents.router_graph import router_graph
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
@@ -18,6 +19,23 @@ def run_profiler(request: ChatRequest, db: Session = Depends(get_db)):
     try:
         response = extract_profile_logic(user_message=request.message, chat_history=request.history)
         return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/route")
+def route_chat_message(request: ChatRequest, db: Session = Depends(get_db)):
+    try:
+        state = {
+            "message": request.message,
+            "history": request.history,
+            "db": db,
+            "intent": None,
+            "subject": None,
+            "result": None,
+            "warnings": [],
+        }
+        final_state = router_graph.invoke(state)
+        return final_state["result"]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -19,6 +19,10 @@ class RecommendationRequest(BaseModel):
 
 @router.post("")
 async def get_skill_recommendations(req: RecommendationRequest, db: Session = Depends(get_db)):
+    return await build_skill_recommendations(req, db)
+
+
+async def build_skill_recommendations(req: RecommendationRequest, db: Session, include_project: bool = True):
     skill = db.query(models.Skill).filter(models.Skill.id == req.skill_id).first()
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
@@ -43,9 +47,11 @@ async def get_skill_recommendations(req: RecommendationRequest, db: Session = De
         d["match_percentage"] = int((0.85 * 100) + (0.15 * diff_match * 100))
     
     # 3. Build (Project)
-    # Project generation does not include external URLs so no validation needed here
-    project_gen = ProjectGenerator()
-    project = project_gen.generate_project(skill_name, req.learner_level, req.goal)
+    # Project generation does not include external URLs so no validation needed here.
+    project = None
+    if include_project:
+        project_gen = ProjectGenerator()
+        project = project_gen.generate_project(skill_name, req.learner_level, req.goal)
     
     # 4. Courses (Coursera / Udemy)
     courses = []

@@ -7,7 +7,7 @@ import schemas
 import auth
 from database import engine, get_db
 from routers import chat, path, progress
-from api import youtube, recommendations
+from api import youtube, recommendations, recommend
 
 # Create DB tables
 models.Base.metadata.create_all(bind=engine)
@@ -35,6 +35,7 @@ app.include_router(path.router)
 app.include_router(progress.router)
 app.include_router(youtube.router)
 app.include_router(recommendations.router)
+app.include_router(recommend.router)
 
 @app.get("/api/health")
 def health_check():
