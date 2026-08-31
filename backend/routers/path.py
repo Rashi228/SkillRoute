@@ -6,8 +6,20 @@ from pydantic import BaseModel
 from database import get_db
 import models
 from auth import get_current_user_optional
+from models import PathTransition
 
 router = APIRouter(prefix="/api/path", tags=["Learning Path"])
+
+
+def log_transition(db: Session, from_skill_id: Optional[int], to_skill_id: int):
+    existing = db.query(PathTransition).filter_by(
+        from_skill_id=from_skill_id, to_skill_id=to_skill_id
+    ).first()
+    if existing:
+        existing.count += 1
+    else:
+        db.add(PathTransition(from_skill_id=from_skill_id, to_skill_id=to_skill_id, count=1))
+    db.commit()
 
 import json
 from services.skill_mapping.semantic_matcher import SemanticMatcher
@@ -93,6 +105,8 @@ def generate_path(request: PathGenerationRequest, db: Session = Depends(get_db),
         target_skill = db.query(models.Skill).filter(models.Skill.name == "Generative AI").first()
         if not target_skill:
             raise HTTPException(status_code=404, detail=f"Target skill not found.")
+
+    log_transition(db, from_skill_id=None, to_skill_id=target_skill.id)
 
     # 2. Get User Profile or Context
     user_skills_dict = {}

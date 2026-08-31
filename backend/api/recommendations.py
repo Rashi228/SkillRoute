@@ -76,8 +76,12 @@ async def get_skill_recommendations(req: RecommendationRequest, db: Session = De
         budget_score = 1.0 # filtered in DB
         verification_score = 1.0 # filtered in DB
         quality_score = min(c.quality_score or 0.8, 1.0)
-        
-        final_score = (skill_relevance * 0.5) + (difficulty_score * 0.2) + (budget_score * 0.1) + (verification_score * 0.1) + (quality_score * 0.1)
+
+        transition_count = db.query(models.PathTransition).filter_by(to_skill_id=skill.id).count()
+        collaborative_score = min(transition_count / 10.0, 1.0)
+
+        final_score = (skill_relevance * 0.45) + (difficulty_score * 0.2) + (budget_score * 0.1) + \
+                      (verification_score * 0.1) + (quality_score * 0.05) + (collaborative_score * 0.1)
         match_percentage = int(min(max(final_score * 100, 0), 100))
         
         courses.append({

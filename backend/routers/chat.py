@@ -96,3 +96,16 @@ def run_coach(request: CoachRequest, db: Session = Depends(get_db), current_user
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+from agents.router_graph import router_graph
+
+@router.post("/route")
+def run_router(request: ChatRequest, db: Session = Depends(get_db)):
+    try:
+        state = {"message": request.message, "history": request.history, "db": db,
+                  "intent": None, "subject": None, "result": None}
+        final_state = router_graph.invoke(state)
+        return final_state["result"]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
