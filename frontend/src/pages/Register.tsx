@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, Key, Mail, User } from 'lucide-react';
+import RouteNav from '../components/RouteNav';
 
 import { API_URL } from '../config';
 
@@ -69,7 +70,17 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
+      <nav className="border-b border-gray-100 bg-white/90 backdrop-blur-md shadow-sm">
+        <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-6 h-6 text-teal-600" />
+            <span className="font-extrabold text-xl tracking-tight text-slate-800">SkillRoute</span>
+          </div>
+          <RouteNav />
+        </div>
+      </nav>
+      <div className="flex min-h-[calc(100vh-73px)] items-center justify-center px-4 py-10">
       <div className="max-w-md w-full p-8 bg-white rounded-xl shadow-lg border border-gray-100">
         <div className="flex flex-col items-center mb-8">
           <div className="p-3 bg-blue-50 rounded-full mb-4">
@@ -151,6 +162,7 @@ export default function Register() {
             Sign in
           </Link>
         </p>
+      </div>
       </div>
     </div>
   );

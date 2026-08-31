@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Map, Compass, BrainCircuit, Target, Sparkles, User, Bot, BookOpen } from 'lucide-react';
+import RouteNav from '../components/RouteNav';
 
 export default function Landing() {
   return (
@@ -7,14 +8,14 @@ export default function Landing() {
       {/* Navigation */}
       <nav className="fixed w-full bg-white/90 backdrop-blur-md z-50 border-b border-gray-100 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex min-h-16 flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between md:gap-4">
             <div className="flex items-center gap-2">
               <Compass className="w-8 h-8 text-teal-600" />
               <span className="font-extrabold text-xl tracking-tight text-slate-800">SkillRoute</span>
             </div>
-            <div className="flex gap-4">
-              <a href="#login" className="text-slate-600 hover:text-teal-600 px-4 py-2 font-bold transition-colors">Sign In</a>
-              <Link to="/register" className="bg-[#2D6A62] hover:bg-teal-800 text-white px-6 py-2 rounded-lg font-bold transition-all shadow-md hover:shadow-lg">Sign Up</Link>
+            <div className="flex flex-wrap items-center gap-3">
+              <RouteNav />
+              <a href="#login" className="text-slate-600 hover:text-teal-600 px-3 py-2 font-bold transition-colors">Sign In</a>
             </div>
           </div>
         </div>
@@ -264,6 +265,13 @@ function LandingLoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
+  const handleBypassLogin = () => {
+    localStorage.setItem('token', 'dev-auth-bypass-token');
+    localStorage.setItem('userEmail', 'dev@skillroute.local');
+    localStorage.setItem('skillroute_access_granted', 'true');
+    window.location.href = '/dashboard';
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -288,6 +296,7 @@ function LandingLoginForm() {
       const data = await response.json();
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('userEmail', email);
+      localStorage.setItem('skillroute_access_granted', 'true');
       window.location.href = '/profiler';
     } catch (err) {
       setError("An error occurred during login. Please try again.");
@@ -310,6 +319,18 @@ function LandingLoginForm() {
           Sign In & Start Journey <ArrowRight className="w-4 h-4" />
         </button>
       </form>
+      <div className="my-5 flex items-center gap-3">
+        <div className="h-px flex-1 bg-slate-200" />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Temporary Access</span>
+        <div className="h-px flex-1 bg-slate-200" />
+      </div>
+      <button
+        type="button"
+        onClick={handleBypassLogin}
+        className="w-full border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+      >
+        Bypass Login & Open Dashboard <ArrowRight className="w-4 h-4" />
+      </button>
       <p className="text-center text-sm text-slate-500 mt-6 font-medium">
         Don't have an account? <Link to="/register" className="text-teal-600 font-bold hover:text-teal-700 hover:underline">Sign up for free</Link>
       </p>
@@ -348,5 +369,3 @@ function TimelineStep({ number, icon: Icon, title, text, link, isCenter = false 
     </div>
   )
 }
-
-
